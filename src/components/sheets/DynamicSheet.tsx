@@ -40,6 +40,8 @@ interface DynamicSheetProps {
   activeId: string | null;
   onUse: (link: DynamicLink | null) => void;
   onError: (message: string) => void;
+  /** מדווח האם למשתמש יש קודים — קובע אם להציג אזהרת תפוגה */
+  onLinksLoaded?: (has: boolean) => void;
 }
 
 /**
@@ -56,6 +58,7 @@ export function DynamicSheet({
   activeId,
   onUse,
   onError,
+  onLinksLoaded,
 }: DynamicSheetProps): ReactNode {
   const [links, setLinks] = useState<DynamicLink[]>([]);
   const [loading, setLoading] = useState(false);
@@ -68,13 +71,15 @@ export function DynamicSheet({
     if (!auth.user) return;
     setLoading(true);
     try {
-      setLinks(await listLinks(auth.user.uid));
+      const loaded = await listLinks(auth.user.uid);
+      setLinks(loaded);
+      onLinksLoaded?.(loaded.length > 0);
     } catch {
       // מצב "לא מופעל" מטופל בתצוגה; תקלה זמנית פשוט משאירה רשימה ריקה
     } finally {
       setLoading(false);
     }
-  }, [auth.user]);
+  }, [auth.user, onLinksLoaded]);
 
   useEffect(() => {
     if (open && auth.user) void refresh();
@@ -94,6 +99,7 @@ export function DynamicSheet({
         ownerId: auth.user.uid,
       });
       setLinks((prev) => [link, ...prev]);
+      onLinksLoaded?.(true);
       setTitle('');
       onUse(link);
       onClose();
@@ -102,7 +108,7 @@ export function DynamicSheet({
     } finally {
       setBusy(false);
     }
-  }, [auth.user, target, title, onUse, onClose, onError]);
+  }, [auth.user, target, title, onUse, onClose, onError, onLinksLoaded]);
 
   /* ── הצד השרתי לא הופעל ─────────────────────────────────────── */
   if (auth.unavailable) {
@@ -146,7 +152,16 @@ export function DynamicSheet({
             variant="ink"
             size="lg"
             block
-            onClick={() => void auth.signInWithGoogle().catch(() => onError('ההתחברות נכשלה'))}
+            onClick={() =>
+              void auth
+                .signInWithGoogle()
+                .then((result) => {
+                  if (result === 'switched') {
+                    onError('חשבון הגוגל כבר בשימוש. הקודים האנונימיים נשארו בחשבון הקודם.');
+                  }
+                })
+                .catch(() => onError('ההתחברות נכשלה'))
+            }
           >
             התחברות עם גוגל
           </Button>
@@ -159,8 +174,9 @@ export function DynamicSheet({
             המשך בלי חשבון
           </Button>
           <p className="px-1 pt-1 text-xs leading-relaxed text-fg-subtle">
-            בלי חשבון הקודים נשמרים על המכשיר הזה בלבד. ניקוי נתוני הדפדפן יאבד את הגישה אליהם,
-            והקודים המודפסים יפסיקו לעבוד.
+            חשבון אנונימי נמחק אוטומטית אחרי 30 יום בלי כניסה, וגם ניקוי נתוני הדפדפן מאבד את
+            הגישה אליו. הקודים המודפסים ימשיכו לעבוד גם אז — אבל לא תוכלו לערוך אותם או לראות
+            כמה סרקו. אפשר לשדרג לחשבון גוגל בכל שלב בלי לאבד קודים.
           </p>
         </div>
 

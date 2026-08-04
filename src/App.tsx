@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { IdCard, Link2, Palette, Ruler, Sparkles, Type } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { AnonymousNotice } from './components/AnonymousNotice';
 import { ExportDock } from './components/ExportDock';
 import { Header } from './components/Header';
 import { HistoryRail } from './components/HistoryRail';
@@ -52,6 +53,8 @@ export default function App(): ReactNode {
   const toast = useToast();
   const install = useInstallPrompt();
   const auth = useAuth();
+  // ההתראה על תפוגת חשבון אנונימי מוצגת רק למי שכבר יש לו מה לאבד
+  const [hasDynamicLinks, setHasDynamicLinks] = useState(false);
 
   const [sheet, setSheet] = useState<SheetName>(null);
   const [exportMode, setExportMode] = useState<ExportMode>('download');
@@ -156,6 +159,17 @@ export default function App(): ReactNode {
               הדביקו קישור, בחרו עיצוב, והורידו
             </p>
           </motion.div>
+
+          {auth.user?.isAnonymous && hasDynamicLinks && (
+            <motion.div variants={listItem}>
+              <AnonymousNotice
+                auth={auth}
+                hasLinks={hasDynamicLinks}
+                onLinked={() => toast.success('החשבון נשמר — הקודים שלך מאובטחים')}
+                onError={toast.error}
+              />
+            </motion.div>
+          )}
 
           <motion.div variants={listItem}>
             <ContentInput
@@ -325,6 +339,7 @@ export default function App(): ReactNode {
           })
         }
         onError={toast.error}
+        onLinksLoaded={setHasDynamicLinks}
       />
 
       <ExportSheet

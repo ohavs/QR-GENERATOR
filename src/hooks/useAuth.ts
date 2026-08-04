@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getAuthClient, isBackendUnavailable, markBackendDisabled, type User } from '@/lib/backend';
 
+export type GoogleSignInResult = 'linked' | 'signed-in' | 'switched';
+
 export interface AuthState {
   user: User | null;
   /** true עד שידוע אם יש משתמש מחובר */
   loading: boolean;
   /** true כשהצד השרתי לא הופעל בקונסולה */
   unavailable: boolean;
-  signInWithGoogle: () => Promise<void>;
+  /** מחזיר 'linked' כשחשבון אנונימי שודרג ושמר את הקודים שלו */
+  signInWithGoogle: () => Promise<GoogleSignInResult>;
   signInAnonymously: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -68,12 +71,46 @@ export function useAuth(): AuthState {
     }
   }, []);
 
-  const signInWithGoogle = useCallback(async () => {
+  /**
+   * התחברות עם גוגל.
+   *
+   * כשכבר קיים משתמש אנונימי מבצעים **קישור** ולא התחברות חדשה: התחברות
+   * רגילה הייתה מייצרת מזהה משתמש אחר, והקודים הדינמיים שנוצרו קודם היו
+   * נשארים תלויים בחשבון הישן — כלומר המשתמש היה מאבד אותם בדיוק ברגע
+   * שניסה לאבטח אותם.
+   *
+   * אם חשבון הגוגל כבר משויך למשתמש אחר, אין ברירה אלא להתחבר רגיל —
+   * ואז חשוב לומר לו שהקודים האנונימיים נשארו מאחור.
+   */
+  const signInWithGoogle = useCallback(async (): Promise<'linked' | 'signed-in' | 'switched'> => {
+    const auth = await getAuthClient();
+    const { GoogleAuthProvider, linkWithPopup, signInWithPopup } = await import('firebase/auth');
+    const provider = new GoogleAuthProvider();
+    const current = auth.currentUser;
+
+    if (current?.isAnonymous) {
+      try {
+        await linkWithPopup(current, provider);
+        return 'linked';
+      } catch (error) {
+        const code = (error as { code?: string }).code;
+        if (code !== 'auth/credential-already-in-use' && code !== 'auth/email-already-in-use') {
+          if (isBackendUnavailable(error)) {
+            markBackendDisabled();
+            setUnavailable(true);
+          }
+          throw error;
+        }
+        // חשבון הגוגל כבר קיים — מתחברים אליו, והקודים האנונימיים נשארים מאחור
+        await signInWithPopup(auth, provider);
+        return 'switched';
+      }
+    }
+
     await handle(async () => {
-      const auth = await getAuthClient();
-      const { GoogleAuthProvider, signInWithPopup } = await import('firebase/auth');
-      await signInWithPopup(auth, new GoogleAuthProvider());
+      await signInWithPopup(auth, provider);
     });
+    return 'signed-in';
   }, [handle]);
 
   const signInAnonymously = useCallback(async () => {

@@ -1,0 +1,56 @@
+rules_version = '2';
+
+/*
+  כללי האבטחה של הקודים הדינמיים.
+  ────────────────────────────────
+  שני עקרונות:
+
+  1. **קריאה ציבורית אינה נדרשת.** ההפניה נעשית בפונקציית שרת שעוקפת את
+     הכללים, ולכן אף אחד לא צריך לקרוא את טבלת הקודים מהדפדפן חוץ מהבעלים.
+     בלי זה כל אחד היה יכול לשלוף את רשימת היעדים של כל המשתמשים.
+
+  2. **סריקות נכתבות רק מהשרת.** אילו הדפדפן היה יכול לכתוב אירועי סריקה,
+     אפשר היה לנפח מונים. הקריאה פתוחה לבעלים בלבד.
+*/
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isOwner(ownerId) {
+      return request.auth != null && request.auth.uid == ownerId;
+    }
+
+    function isValidTarget(url) {
+      return url is string
+        && url.size() > 0
+        && url.size() <= 2000
+        && url.matches('https?://.*');
+    }
+
+    match /links/{linkId} {
+      allow read: if isOwner(resource.data.ownerId);
+      allow list: if request.auth != null;
+
+      allow create: if request.auth != null
+        && request.resource.data.ownerId == request.auth.uid
+        && isValidTarget(request.resource.data.target)
+        && request.resource.data.scanCount == 0
+        && request.resource.data.title is string
+        && request.resource.data.title.size() <= 120;
+
+      // הבעלים משנה יעד וכותרת. המונה שייך לשרת בלבד — אחרת אפשר לזייף אותו.
+      allow update: if isOwner(resource.data.ownerId)
+        && request.resource.data.ownerId == resource.data.ownerId
+        && request.resource.data.scanCount == resource.data.scanCount
+        && isValidTarget(request.resource.data.target);
+
+      allow delete: if isOwner(resource.data.ownerId);
+
+      match /scans/{scanId} {
+        allow read: if isOwner(get(/databases/$(database)/documents/links/$(linkId)).data.ownerId);
+        // כתיבה מפונקציית ההפניה בלבד, שמשתמשת ב-Admin SDK ועוקפת כללים
+        allow write: if false;
+      }
+    }
+  }
+}

@@ -43,6 +43,13 @@ export interface StudioState {
   logo: LogoSpec | null;
   frameEnabled: boolean;
   frameText: string;
+  /**
+   * קוד דינמי פעיל.
+   *
+   * כשהוא מוגדר, הכתובת הקצרה שלו דורסת את התוכן שהוקלד — זה בדיוק העניין
+   * בקוד דינמי: הקוד מצביע על כתובת קבועה, והיעד שמאחוריה משתנה.
+   */
+  dynamic: { id: string; url: string; title: string } | null;
 }
 
 const EMPTY_VALUES = Object.fromEntries(
@@ -67,6 +74,7 @@ const INITIAL: StudioState = {
   logo: null,
   frameEnabled: false,
   frameText: 'סרקו אותי',
+  dynamic: null,
 };
 
 function hydrate(): StudioState {
@@ -117,8 +125,10 @@ export function useQrStudio(): StudioApi {
   const [state, setState] = useState<StudioState>(hydrate);
 
   const rawValue = useMemo(
-    () => CONTENT_TYPES[state.contentKind].encode(state.contentValues[state.contentKind] ?? {}),
-    [state.contentKind, state.contentValues],
+    () =>
+      state.dynamic?.url ??
+      CONTENT_TYPES[state.contentKind].encode(state.contentValues[state.contentKind] ?? {}),
+    [state.dynamic, state.contentKind, state.contentValues],
   );
   const debouncedValue = useDebounced(rawValue, 200);
 
@@ -254,7 +264,9 @@ export function useQrStudio(): StudioApi {
     design,
     size,
     encodedValue: debouncedValue,
-    inputNote: contentNote(state.contentKind, state.contentValues[state.contentKind] ?? {}),
+    inputNote: state.dynamic
+      ? 'הקוד מצביע על הכתובת הקצרה — אפשר להחליף את היעד בכל רגע'
+      : contentNote(state.contentKind, state.contentValues[state.contentKind] ?? {}),
     geometry,
     buildPreview,
     error,

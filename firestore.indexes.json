@@ -1,0 +1,14 @@
+{
+  "indexes": [
+    {
+      "//": "ספריית המשתמש: הקודים שלו, החדשים קודם",
+      "collectionGroup": "links",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "ownerId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

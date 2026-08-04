@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Palette, Ruler, Sparkles, Type } from 'lucide-react';
+import { Link2, Palette, Ruler, Sparkles, Type } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ExportDock } from './components/ExportDock';
 import { Header } from './components/Header';
@@ -10,11 +10,13 @@ import { UpdatePrompt } from './components/UpdatePrompt';
 import { ContentInput } from './components/ContentInput';
 import { BrandSheet } from './components/sheets/BrandSheet';
 import { DesignSheet } from './components/sheets/DesignSheet';
+import { DynamicSheet } from './components/sheets/DynamicSheet';
 import { ExportSheet, type ExportMode } from './components/sheets/ExportSheet';
 import { SizeSheet } from './components/sheets/SizeSheet';
 import { StyleSheet } from './components/sheets/StyleSheet';
 import { RowGroup, SettingRow } from './components/ui/controls';
 import { paintToCss } from './components/ui/ColorField';
+import { useAuth } from './hooks/useAuth';
 import { useExportActions } from './hooks/useExportActions';
 import { useInstallPrompt } from './hooks/useInstallPrompt';
 import { useQrStudio } from './hooks/useQrStudio';
@@ -27,15 +29,17 @@ import { listItem, listParent } from './lib/motion';
 import { CONTENT_TYPES } from './lib/qr/content';
 import { labelFor, DOT_SCALES, MODULE_SHAPES } from './lib/qr/options';
 import { paintToColor } from './lib/qr/render/common';
+import { linkUrl } from './lib/dynamic';
 import { loadHistory, pushHistory, removeHistory, type HistoryEntry } from './lib/storage';
 
-type SheetName = 'design' | 'style' | 'brand' | 'size' | 'install' | 'export' | null;
+type SheetName = 'design' | 'style' | 'brand' | 'size' | 'install' | 'export' | 'dynamic' | null;
 
 export default function App(): ReactNode {
   const studio = useQrStudio();
   const { isDark, toggle } = useTheme();
   const toast = useToast();
   const install = useInstallPrompt();
+  const auth = useAuth();
 
   const [sheet, setSheet] = useState<SheetName>(null);
   const [exportMode, setExportMode] = useState<ExportMode>('download');
@@ -193,6 +197,16 @@ export default function App(): ReactNode {
                 value={`${size.label} · ${size.hint}`}
                 onClick={() => setSheet('size')}
               />
+              <SettingRow
+                icon={<Link2 size={18} aria-hidden />}
+                label="קוד דינמי"
+                value={
+                  state.dynamic
+                    ? `פעיל · ${state.dynamic.title}`
+                    : 'החלפת יעד אחרי הדפסה, ומדידת סריקות'
+                }
+                onClick={() => setSheet('dynamic')}
+              />
             </RowGroup>
           </motion.div>
 
@@ -258,6 +272,22 @@ export default function App(): ReactNode {
           patch({ sizeId: s.id });
           void track('size_selected', { size: s.id });
         }}
+      />
+
+      <DynamicSheet
+        open={sheet === 'dynamic'}
+        onClose={closeSheet}
+        auth={auth}
+        suggestedTarget={state.dynamic ? '' : encodedValue}
+        activeId={state.dynamic?.id ?? null}
+        onUse={(link) =>
+          patch({
+            dynamic: link
+              ? { id: link.id, url: linkUrl(link.id), title: link.title || link.target }
+              : null,
+          })
+        }
+        onError={toast.error}
       />
 
       <ExportSheet

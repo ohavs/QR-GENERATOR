@@ -12,8 +12,8 @@
  *
  *   node scripts/logo-bg-test.mjs
  */
-import { chromium } from 'playwright';
-const b = await chromium.launch({ executablePath:'/opt/pw-browsers/chromium-1194/chrome-linux/chrome' });
+import { launchBrowser } from './browser.mjs';
+const b = await launchBrowser();
 const p = await b.newPage();
 p.on('pageerror', e=>console.error('PAGEERROR:', e.message));
 await p.goto(process.env.ORIGIN ?? 'http://localhost:5174/', { waitUntil:'domcontentloaded' });

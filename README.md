@@ -106,6 +106,8 @@ FIREBASE_TOKEN=<האסימון> firebase deploy --only hosting
 ### בדיקות רגרסיה
 
 ```bash
+npm test                       # 93 בדיקות יחידה על המודולים הטהורים
+
 npm run dev                    # פורט 5174 — נדרש ל-scan/content/logo
 npm run test:scan              # כל עיצוב × 2 וריאציות × 3 גדלים, מפוענח בחזרה
 npm run test:content           # 10 סוגי התוכן: קידוד לפי התקן + פענוח חוזר
@@ -114,6 +116,12 @@ npm run test:logo              # הסרת רקע: רקע נעלם, לוגו נש
 npm run build && npm run preview   # פורט 4173
 npm run test:export            # כל פורמט ייצוא מפיק קובץ תקין
 ```
+
+בדיקות הדפדפן משתמשות ב-`scripts/browser.mjs`, שנותן ל-Playwright לאתר את
+Chromium בעצמו ורק בנפילה מחפש דפדפן מותקן מראש תחת `PLAYWRIGHT_BROWSERS_PATH`.
+אפשר לכפות נתיב עם `PW_CHROMIUM_PATH`.
+
+הכול רץ אוטומטית ב-GitHub Actions (`.github/workflows/ci.yml`) על כל דחיפה.
 
 `test:scan` מפענח פעמיים: ברזולוציה המקורית, ובגרסה מוקטנת ל‑480px שמדמה מצלמת
 טלפון — הנתיב המחמיר יותר ולכן הקובע. כרגע: **90/90**.

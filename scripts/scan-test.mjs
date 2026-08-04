@@ -6,16 +6,14 @@
  *
  *   node scan-test.mjs
  */
-import { chromium } from 'playwright';
+import { launchBrowser } from './browser.mjs';
 import { readFileSync } from 'node:fs';
 
 const ORIGIN = process.env.ORIGIN ?? 'http://localhost:5174';
 const VALUE = 'https://claude.ai/code?utm_source=qr&ref=studio';
 const SIZES = [256, 400, 1024];
 
-const browser = await chromium.launch({
-  executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
-});
+const browser = await launchBrowser();
 const page = await browser.newPage();
 page.on('pageerror', (e) => console.error('PAGEERROR:', e.message));
 await page.goto(ORIGIN, { waitUntil: 'domcontentloaded' });

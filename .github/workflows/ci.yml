@@ -60,11 +60,12 @@ jobs:
 
       # שרת הפיתוח מגיש מודולי TypeScript ישירות, וזה מה שבדיקות הסריקה
       # והתוכן צריכות כדי לייבא את המנוע בלי לעבור דרך ה-bundle.
+      # שרת התצוגה מגיש את הבנייה, ועליו רצה בדיקת הייצוא.
       - name: הפעלת שרתים
         run: |
-          npx vite --port 5174 --strictPort &
-          npx vite preview --port 4173 --strictPort &
-          npx wait-on http://localhost:5174 http://localhost:4173 --timeout 60000
+          nohup npx vite --port 5174 --strictPort > /tmp/vite-dev.log 2>&1 &
+          nohup npx vite preview --port 4173 --strictPort > /tmp/vite-preview.log 2>&1 &
+          npx wait-on http://localhost:5174 http://localhost:4173 --timeout 90000
 
       - name: בדיקת סריקוּת
         run: npm run test:scan
@@ -77,3 +78,7 @@ jobs:
 
       - name: בדיקת ייצוא
         run: npm run test:export
+
+      - name: לוגים של השרתים בכישלון
+        if: failure()
+        run: tail -50 /tmp/vite-dev.log /tmp/vite-preview.log

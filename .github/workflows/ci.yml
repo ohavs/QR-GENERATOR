@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# ריצה חדשה על אותו ענף מבטלת את הקודמת — אין טעם לבדוק קומיט שכבר הוחלף
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: טיפוסים, בדיקות יחידה ובנייה
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: בדיקת טיפוסים
+        run: npm run typecheck
+
+      - name: בדיקות יחידה
+        run: npm test
+
+      - name: בנייה
+        run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 3
+
+  browser:
+    name: סריקוּת, תוכן וייצוא
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: התקנת Chromium
+        run: npx playwright install --with-deps chromium
+
+      - run: npm run build
+
+      # שרת הפיתוח מגיש מודולי TypeScript ישירות, וזה מה שבדיקות הסריקה
+      # והתוכן צריכות כדי לייבא את המנוע בלי לעבור דרך ה-bundle.
+      - name: הפעלת שרתים
+        run: |
+          npx vite --port 5174 --strictPort &
+          npx vite preview --port 4173 --strictPort &
+          npx wait-on http://localhost:5174 http://localhost:4173 --timeout 60000
+
+      - name: בדיקת סריקוּת
+        run: npm run test:scan
+
+      - name: בדיקת סוגי תוכן
+        run: npm run test:content
+
+      - name: בדיקת הסרת רקע מלוגו
+        run: npm run test:logo
+
+      - name: בדיקת ייצוא
+        run: npm run test:export

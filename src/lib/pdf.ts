@@ -110,12 +110,22 @@ export interface PdfOptions {
   title?: string;
 }
 
-/** בונה PDF בן עמוד אחד שבו התמונה ממלאת את כל שטח העמוד. */
-export async function canvasToPdf(
-  canvas: HTMLCanvasElement,
-  options: PdfOptions,
-): Promise<Blob> {
-  const { bytes: imageBytes, filter } = await encodeImage(canvas);
+export interface PdfImage {
+  bytes: Uint8Array;
+  filter: 'FlateDecode' | 'DCTDecode';
+  pixelWidth: number;
+  pixelHeight: number;
+}
+
+/**
+ * מרכיב את מסמך ה-PDF מתמונה מקודדת.
+ *
+ * מופרד מ-`canvasToPdf` כדי שאפשר יהיה לבדוק את הרכבת המסמך — במיוחד את טבלת
+ * ה-xref, שבה כל היסט חייב להצביע בדיוק על תחילת האובייקט — בלי דפדפן.
+ */
+export function buildPdfDocument(image: PdfImage, options: PdfOptions): Blob {
+  const { bytes: imageBytes, filter } = image;
+  const canvas = { width: image.pixelWidth, height: image.pixelHeight };
   const pageW = +(options.widthMm * PT_PER_MM).toFixed(3);
   const pageH = +(options.heightMm * PT_PER_MM).toFixed(3);
 
@@ -175,4 +185,13 @@ export async function canvasToPdf(
   return pdf.toBlob();
 }
 
-export { PT_PER_MM };
+/** בונה PDF בן עמוד אחד שבו התמונה ממלאת את כל שטח העמוד. */
+export async function canvasToPdf(canvas: HTMLCanvasElement, options: PdfOptions): Promise<Blob> {
+  const { bytes, filter } = await encodeImage(canvas);
+  return buildPdfDocument(
+    { bytes, filter, pixelWidth: canvas.width, pixelHeight: canvas.height },
+    options,
+  );
+}
+
+export { PT_PER_MM, pdfString };

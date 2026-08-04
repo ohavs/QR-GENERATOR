@@ -16,3 +16,6 @@ test-output/
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# מטמון פריסה מקומי של Firebase
+.firebase/

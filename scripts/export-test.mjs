@@ -52,11 +52,14 @@ for (const [format, ext] of [
   ['PDF', 'pdf'],
   ['JPG', 'jpg'],
 ]) {
+  await page.getByRole('button', { name: 'הורדה', exact: true }).click();
+  await page.waitForTimeout(500);
   await page.getByRole('radio', { name: format, exact: true }).click();
   const [download] = await Promise.all([
     page.waitForEvent('download', { timeout: 30000 }),
-    page.getByRole('button', { name: 'הורדה' }).click(),
+    page.getByRole('dialog').getByRole('button', { name: 'הורדה' }).click(),
   ]);
+  await page.waitForTimeout(600);
 
   const path = join(OUT, `qr-export-test.${ext}`);
   await download.saveAs(path);
@@ -80,17 +83,24 @@ await page.getByRole('button', { name: /^גודל/ }).click();
 await page.waitForTimeout(500);
 await page.getByRole('button', { name: /סטורי \/ ריל/ }).click();
 await page.waitForTimeout(700);
+await page.getByRole('button', { name: 'הורדה', exact: true }).click();
+await page.waitForTimeout(500);
 await page.getByRole('radio', { name: 'PNG', exact: true }).click();
+// שם קובץ מותאם אישית — הפיצ'ר שנוסף יחד עם הגיליון
+await page.getByLabel('שם הקובץ').fill('my-story-code');
 const [story] = await Promise.all([
   page.waitForEvent('download', { timeout: 30000 }),
-  page.getByRole('button', { name: 'הורדה' }).click(),
+  page.getByRole('dialog').getByRole('button', { name: 'הורדה' }).click(),
 ]);
 const storyPath = join(OUT, 'qr-export-test-story.png');
 await story.saveAs(storyPath);
 const storySize = readFileSync(storyPath).length;
-const storyOk = storySize > 1000;
+const storyName = story.suggestedFilename();
+const storyOk = storySize > 1000 && storyName === 'my-story-code.png';
 if (!storyOk) failures++;
-console.log(`${storyOk ? '✓' : '✗'} סטורי 1080×1920 ${String(storySize).padStart(8)} bytes`);
+console.log(
+  `${storyOk ? '✓' : '✗'} סטורי 1080×1920 ${storyName.padEnd(24)} ${String(storySize).padStart(8)} bytes`,
+);
 
 console.log(failures ? `\n${failures} failed` : '\nall exports valid');
 await browser.close();

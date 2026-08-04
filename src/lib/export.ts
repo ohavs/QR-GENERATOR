@@ -137,6 +137,34 @@ export async function copyPngToClipboard(blob: Blob): Promise<boolean> {
   }
 }
 
+const HEBREW_TRANSLITERATION: Record<string, string> = {
+  א: 'a', ב: 'b', ג: 'g', ד: 'd', ה: 'h', ו: 'v', ז: 'z', ח: 'ch', ט: 't',
+  י: 'y', כ: 'k', ך: 'k', ל: 'l', מ: 'm', ם: 'm', נ: 'n', ן: 'n', ס: 's',
+  ע: 'a', פ: 'p', ף: 'f', צ: 'tz', ץ: 'tz', ק: 'k', ר: 'r', ש: 'sh', ת: 't',
+};
+
+/**
+ * ממיר שם קובץ ל-ASCII.
+ *
+ * דפדפנים מבוססי Chromium מתעלמים משם לא-ASCII בהורדת Blob ושומרים את הקובץ
+ * בשם "download" — כלומר משתמש שיקליד שם בעברית יקבל תוצאה גרועה יותר מהשם
+ * האוטומטי. לכן מתעתקים, ומציגים לו מראש את השם שייצא בפועל.
+ */
+export function toAsciiFilename(name: string): string {
+  const transliterated = name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f\u0591-\u05c7]/g, '') // ניקוד וטעמים
+    .split('')
+    .map((char) => HEBREW_TRANSLITERATION[char] ?? char)
+    .join('');
+
+  return transliterated
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^[-.]+|[-.]+$/g, '')
+    .slice(0, 80);
+}
+
 /**
  * שם קובץ בטוח מתוך הערך שהמשתמש הזין.
  *

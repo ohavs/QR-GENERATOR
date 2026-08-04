@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from './useToast';
 import {
   buildExport,
@@ -6,6 +6,7 @@ import {
   download,
   shareFile,
   suggestFilename,
+  toAsciiFilename,
   toPngBlob,
   type ExportFormat,
 } from '@/lib/export';
@@ -18,12 +19,19 @@ export type ExportBusy = null | 'download' | 'share' | 'copy';
 export interface ExportActions {
   format: ExportFormat;
   setFormat: (f: ExportFormat) => void;
+  /** שם הקובץ כפי שהמשתמש הקליד, ללא סיומת */
+  fileName: string;
+  setFileName: (name: string) => void;
+  /** השם שיישמר בפועל — מתועתק ל-ASCII. שונה מ-`fileName` כשהוקלדה עברית. */
+  resolvedFileName: string;
   busy: ExportBusy;
   disabled: boolean;
   runDownload: () => Promise<void>;
   runShare: () => Promise<void>;
   runCopy: () => Promise<void>;
 }
+
+
 
 interface Params {
   geo: QrGeometry | null;
@@ -51,8 +59,22 @@ export function useExportActions({
   const toast = useToast();
   const [format, setFormat] = useState<ExportFormat>('png');
   const [busy, setBusy] = useState<ExportBusy>(null);
+  const [fileName, setFileNameState] = useState('');
+  const touched = useRef(false);
 
-  const name = suggestFilename(value, design.id);
+  const suggested = suggestFilename(value, design.id);
+
+  // השם המוצע מתעדכן עם התוכן והעיצוב — אבל רק עד שהמשתמש נגע בו
+  useEffect(() => {
+    if (!touched.current) setFileNameState(suggested);
+  }, [suggested]);
+
+  const setFileName = useCallback((next: string) => {
+    touched.current = true;
+    setFileNameState(next);
+  }, []);
+
+  const name = toAsciiFilename(fileName) || suggested;
   const title = `קוד QR — ${value}`;
 
   const runDownload = useCallback(async () => {
@@ -120,5 +142,16 @@ export function useExportActions({
     }
   }, [geo, size, transparent, design.id, toast]);
 
-  return { format, setFormat, busy, disabled: !geo, runDownload, runShare, runCopy };
+  return {
+    format,
+    setFormat,
+    fileName,
+    setFileName,
+    resolvedFileName: name,
+    busy,
+    disabled: !geo,
+    runDownload,
+    runShare,
+    runCopy,
+  };
 }

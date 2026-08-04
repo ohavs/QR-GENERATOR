@@ -10,6 +10,7 @@ import { UpdatePrompt } from './components/UpdatePrompt';
 import { ContentInput } from './components/ContentInput';
 import { BrandSheet } from './components/sheets/BrandSheet';
 import { DesignSheet } from './components/sheets/DesignSheet';
+import { ExportSheet, type ExportMode } from './components/sheets/ExportSheet';
 import { SizeSheet } from './components/sheets/SizeSheet';
 import { StyleSheet } from './components/sheets/StyleSheet';
 import { RowGroup, SettingRow } from './components/ui/controls';
@@ -28,7 +29,7 @@ import { labelFor, DOT_SCALES, MODULE_SHAPES } from './lib/qr/options';
 import { paintToColor } from './lib/qr/render/common';
 import { loadHistory, pushHistory, removeHistory, type HistoryEntry } from './lib/storage';
 
-type SheetName = 'design' | 'style' | 'brand' | 'size' | 'install' | null;
+type SheetName = 'design' | 'style' | 'brand' | 'size' | 'install' | 'export' | null;
 
 export default function App(): ReactNode {
   const studio = useQrStudio();
@@ -37,6 +38,7 @@ export default function App(): ReactNode {
   const install = useInstallPrompt();
 
   const [sheet, setSheet] = useState<SheetName>(null);
+  const [exportMode, setExportMode] = useState<ExportMode>('download');
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory());
   const lastTracked = useRef('');
   const installOffered = useRef(false);
@@ -205,7 +207,13 @@ export default function App(): ReactNode {
           )}
         </motion.div>
 
-        <ExportDock actions={exportActions} transparent={state.transparent} />
+        <ExportDock
+          actions={exportActions}
+          onOpenExport={(mode) => {
+            setExportMode(mode);
+            setSheet('export');
+          }}
+        />
 
         <footer className="pb-6 pt-4 text-center text-xs leading-relaxed text-fg-subtle">
           הקודים נוצרים במלואם במכשיר שלכם — קישורים, לוגואים ותמונות לא נשלחים לשום שרת.
@@ -250,6 +258,15 @@ export default function App(): ReactNode {
           patch({ sizeId: s.id });
           void track('size_selected', { size: s.id });
         }}
+      />
+
+      <ExportSheet
+        open={sheet === 'export'}
+        mode={exportMode}
+        onClose={closeSheet}
+        actions={exportActions}
+        transparent={state.transparent}
+        size={size}
       />
 
       <InstallSheet

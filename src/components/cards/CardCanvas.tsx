@@ -11,6 +11,8 @@ interface CardCanvasProps {
   qrOverride: { x: number; y: number; size: number } | null;
   /** רוחב הרינדור בפיקסלים — גבוה יותר לתצוגה חדה במסכי רטינה */
   width?: number;
+  /** 'ghost' = דוגמאות בשקיפות, 'solid' = כמו תוכן אמיתי (לגלריה) */
+  placeholders?: 'none' | 'solid' | 'ghost';
   className?: string;
 }
 
@@ -26,6 +28,7 @@ export function CardCanvas({
   geometry,
   qrOverride,
   width = 900,
+  placeholders = 'none',
   className,
 }: CardCanvasProps): ReactNode {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -35,7 +38,7 @@ export function CardCanvas({
     let cancelled = false;
 
     const timer = setTimeout(() => {
-      void renderCard(template, values, geometry, qrOverride, { width })
+      void renderCard(template, values, geometry, qrOverride, { width, placeholders })
         .then((canvas) => {
           if (cancelled || !hostRef.current) return;
           canvas.className = 'block h-auto w-full';
@@ -53,13 +56,13 @@ export function CardCanvas({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [template, values, geometry, qrOverride, width]);
+  }, [template, values, geometry, qrOverride, width, placeholders]);
 
   return (
     <div
       ref={hostRef}
       className={cn(
-        'overflow-hidden rounded-[var(--radius-tile)] border border-border transition-opacity duration-200',
+        'overflow-hidden rounded-[var(--radius-tile)] transition-opacity duration-200',
         ready ? 'opacity-100' : 'opacity-0',
         className,
       )}

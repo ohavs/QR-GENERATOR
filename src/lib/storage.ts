@@ -78,6 +78,19 @@ export function removeHistory(id: string): HistoryEntry[] {
   return next;
 }
 
+/**
+ * מחזיר רשומה שנמחקה למקומה המקורי.
+ *
+ * לא `pushHistory`: היא הייתה מקפיצה את הרשומה לראש הרשימה ומשנה את זמן
+ * היצירה. ביטול צריך להחזיר את המצב שהיה, לא ליצור מצב חדש שדומה לו.
+ */
+export function restoreHistory(entry: HistoryEntry, index: number): HistoryEntry[] {
+  const current = loadHistory().filter((e) => e.id !== entry.id);
+  const next = [...current.slice(0, index), entry, ...current.slice(index)].slice(0, MAX_HISTORY);
+  write(HISTORY_KEY, next);
+  return next;
+}
+
 export function clearHistory(): void {
   write(HISTORY_KEY, []);
 }

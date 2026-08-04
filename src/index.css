@@ -180,8 +180,19 @@
     display: none;
   }
 
-  .safe-b {
-    padding-bottom: env(safe-area-inset-bottom);
+  /*
+    מרווח תחתון + אזור בטוח.
+
+    בכוונה `calc` על משתנה ולא כלי שקובע `padding-bottom` בעצמו: כלי כזה דורס
+    את `p-2` או `pb-3` שנמצא על אותו אלמנט, ובדפדפן שבו `env()` מחזיר 0 המרווח
+    התחתון נעלם לגמרי. זה מה שגרם לכפתור "רענון" לגלוש מחוץ לפס שלו.
+  */
+  .pb-safe {
+    padding-bottom: calc(var(--pb-safe, 0px) + env(safe-area-inset-bottom));
+  }
+
+  .bottom-safe {
+    bottom: calc(var(--bottom-safe, 0px) + env(safe-area-inset-bottom));
   }
 }
 

@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, type PanInfo } from 'framer-motion';
 import { X } from 'lucide-react';
-import { useEffect, useId, useRef, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/cn';
 import { fade, springSoft } from '@/lib/motion';
@@ -121,7 +121,10 @@ export function Sheet({ open, onClose, title, subtitle, footer, children }: Shee
             </div>
 
             {footer && (
-              <div className="safe-b shrink-0 border-t border-border bg-surface px-5 pb-4 pt-3">
+              <div
+                className="pb-safe shrink-0 border-t border-border bg-surface px-5 pt-3"
+                style={{ '--pb-safe': '1rem' } as CSSProperties}
+              >
                 {footer}
               </div>
             )}

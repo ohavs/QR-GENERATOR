@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { IdCard, Layers, Link2, Palette, Ruler, Sparkles, Type } from 'lucide-react';
+import { IdCard, Layers, Link2, Palette, Ruler, Type } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AnonymousNotice } from './components/AnonymousNotice';
 import { ExportDock } from './components/ExportDock';
@@ -35,7 +35,13 @@ import { paintToColor } from './lib/qr/render/common';
 import { DEFAULT_TEMPLATE, TEMPLATE_BY_ID } from './lib/cards/templates';
 import type { CardState } from './lib/cards/types';
 import { linkUrl } from './lib/dynamic';
-import { loadHistory, pushHistory, removeHistory, type HistoryEntry } from './lib/storage';
+import {
+  loadHistory,
+  pushHistory,
+  removeHistory,
+  restoreHistory,
+  type HistoryEntry,
+} from './lib/storage';
 
 type SheetName =
   | 'design'
@@ -140,6 +146,23 @@ export default function App(): ReactNode {
     [patch, studio],
   );
 
+  /**
+   * הסרה מההיסטוריה — עם ביטול, בלי דיאלוג.
+   *
+   * דיאלוג אישור על כל הסרה מרשימת "נוצרו לאחרונה" היה חיכוך על פעולה זולה,
+   * והמשתמש היה לומד לאשר אוטומטית. ביטול מיידי מגן בלי לגבות מס.
+   */
+  const forgetEntry = useCallback(
+    (id: string) => {
+      const index = history.findIndex((e) => e.id === id);
+      const entry = history[index];
+      if (!entry) return;
+      setHistory(removeHistory(id));
+      toast.undoable('הוסר מההיסטוריה', () => setHistory(restoreHistory(entry, index)));
+    },
+    [history, toast],
+  );
+
   const closeSheet = useCallback(() => setSheet(null), []);
 
   const shapeLabel =
@@ -194,17 +217,13 @@ export default function App(): ReactNode {
               contrast={contrast}
               animationKey={`${design.id}-${state.moduleShape}-${state.transparent}-${state.frameEnabled}`}
               compact={CONTENT_TYPES[state.contentKind].fields.length > 2}
+              designName={design.name}
+              onPickDesign={() => setSheet('design')}
             />
           </motion.div>
 
           <motion.div variants={listItem}>
             <RowGroup>
-              <SettingRow
-                icon={<Sparkles size={18} aria-hidden />}
-                label="עיצוב"
-                value={design.name}
-                onClick={() => setSheet('design')}
-              />
               <SettingRow
                 icon={<Palette size={18} aria-hidden />}
                 label="צבעים וצורות"
@@ -261,11 +280,7 @@ export default function App(): ReactNode {
 
           {history.length > 0 && (
             <motion.div variants={listItem}>
-              <HistoryRail
-                entries={history}
-                onRestore={restore}
-                onRemove={(id) => setHistory(removeHistory(id))}
-              />
+              <HistoryRail entries={history} onRestore={restore} onRemove={forgetEntry} />
             </motion.div>
           )}
         </motion.div>
@@ -311,6 +326,7 @@ export default function App(): ReactNode {
         patch={patch}
         onError={toast.error}
         onInfo={toast.info}
+        onUndoable={toast.undoable}
       />
 
       <SizeSheet

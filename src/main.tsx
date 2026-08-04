@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
+import { ConfirmProvider } from './components/ui/Confirm';
 import { ToastProvider } from './hooks/useToast';
 import './index.css';
 
@@ -10,7 +11,9 @@ if (!container) throw new Error('לא נמצא אלמנט השורש #root');
 createRoot(container).render(
   <StrictMode>
     <ToastProvider>
-      <App />
+      <ConfirmProvider>
+        <App />
+      </ConfirmProvider>
     </ToastProvider>
   </StrictMode>,
 );

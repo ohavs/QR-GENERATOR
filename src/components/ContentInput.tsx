@@ -157,25 +157,65 @@ function Field({ field, value, onChange, solo, invalid }: FieldProps): ReactNode
     solo ? 'h-14 rounded-full' : 'h-12',
   );
 
+  /*
+    בחירה מוצגת כקבוצת אפשרויות פרושה ולא כתפריט נפתח.
+
+    `<select>` פותח רכיב של מערכת ההפעלה — גופן אחר, צבעים אחרים, וכיוון שגוי
+    בחלק ממכשירי אנדרואיד. גם כשמעצבים את התיבה הסגורה, הרשימה שנפתחת נשארת
+    זרה לאפליקציה. שתיים-שלוש אפשרויות ממילא נכנסות לשורה אחת.
+  */
   if (field.type === 'select') {
+    const options = field.options ?? [];
+    const current = value || options[0]?.value || '';
+
+    /*
+      תמיד ברוחב מלא, גם כששאר השדות בשורה חצויה.
+
+      בחירה פרושה צריכה מקום לכל האפשרויות; דחיסה לחצי רוחב טלפון קיצצה את
+      התוויות באמצע. `min-w-0` חובה כאן — ל-fieldset יש רוחב מינימלי מובנה
+      שמונע ממנו להתכווץ בתוך רשת, והוא גולש החוצה במקום להצטמצם.
+    */
     return (
-      <label className={cn('block', field.half ? 'col-span-1' : 'col-span-2')} htmlFor={id}>
-        <span className="mb-1.5 block px-1 text-[0.75rem] font-semibold text-fg-muted">
+      <fieldset className="col-span-2 block min-w-0">
+        <legend className="mb-1.5 px-1 text-[0.75rem] font-semibold text-fg-muted">
           {field.label}
-        </span>
-        <select
-          id={id}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className="h-12 w-full appearance-none rounded-2xl border border-border bg-surface px-3.5 text-[0.875rem] font-medium outline-none transition-colors focus:border-fg"
+        </legend>
+        <div
+          role="radiogroup"
+          aria-label={field.label}
+          className="flex h-12 items-center gap-1 rounded-2xl border border-border bg-surface p-1"
         >
-          {field.options?.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </label>
+          {options.map((option) => {
+            const active = option.value === current;
+            return (
+              <motion.button
+                key={option.value || 'empty'}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                onClick={() => onChange(option.value)}
+                whileTap={{ scale: 0.95 }}
+                transition={springSnappy}
+                className={cn(
+                  'relative h-full min-w-0 flex-1 rounded-[0.875rem] px-2',
+                  'text-[0.8125rem] font-semibold transition-colors duration-200',
+                  active ? 'text-ink-fg' : 'text-fg-muted hover:text-fg',
+                )}
+              >
+                {active && (
+                  <motion.span
+                    layoutId={`${id}-choice`}
+                    transition={springSnappy}
+                    className="absolute inset-0 rounded-[0.875rem] bg-ink"
+                    aria-hidden
+                  />
+                )}
+                <span className="relative block truncate">{option.label}</span>
+              </motion.button>
+            );
+          })}
+        </div>
+      </fieldset>
     );
   }
 

@@ -22,6 +22,8 @@ interface BrandSheetProps {
   patch: (partial: Partial<StudioState>) => void;
   onError: (message: string) => void;
   onInfo: (message: string) => void;
+  /** הודעה עם ביטול — להסרת לוגו, שאחרת מחייבת למצוא את הקובץ מחדש */
+  onUndoable: (message: string, undo: () => void) => void;
 }
 
 /** לוגו וכיתוב — מה שהופך קוד גנרי לקוד של מותג מסוים. */
@@ -33,6 +35,7 @@ export function BrandSheet({
   patch,
   onError,
   onInfo,
+  onUndoable,
 }: BrandSheetProps): ReactNode {
   const fileRef = useRef<HTMLInputElement>(null);
   const [working, setWorking] = useState(false);
@@ -158,7 +161,13 @@ export function BrandSheet({
                 type="button"
                 whileTap={{ scale: 0.9 }}
                 transition={springSnappy}
-                onClick={() => patch({ logo: null })}
+                onClick={() => {
+                  // הלוגו נשמר בזיכרון ומוחזר בהקשה: בלי זה "הסרה" בטעות
+                  // מחייבת למצוא שוב את הקובץ במכשיר
+                  const removed = state.logo;
+                  patch({ logo: null });
+                  onUndoable('הלוגו הוסר', () => patch({ logo: removed, ecLevel: 'H' }));
+                }}
                 aria-label="הסרת הלוגו"
                 className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-fg-muted transition-colors hover:bg-surface-2 hover:text-danger"
               >

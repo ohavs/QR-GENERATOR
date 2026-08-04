@@ -1,6 +1,7 @@
 import { renderToCanvas } from '../qr/render/canvas';
-import type { QrGeometry } from '../qr/types';
-import type { CardTemplate, CardValues, TextElement } from './types';
+import { linearPoints, radialParams, type Region } from '../qr/render/common';
+import type { Paint, QrGeometry } from '../qr/types';
+import type { CardTemplate, CardValues, ShapeElement, TextElement } from './types';
 
 /**
  * רינדור כרטיס.
@@ -19,6 +20,14 @@ export interface CardRenderOptions {
   width: number;
   /** משפחת גופן; ברירת מחדל — גופני האפליקציה */
   fonts?: { display: string; sans: string };
+  /**
+   * ממלא שדות ריקים בערכי הדוגמה של התבנית.
+   *
+   * חובה בגלריה — תבנית עם שדות ריקים נראית כמו כרטיס ריק, והמשתמש לא יכול
+   * לבחור בין שמונה מלבנים לבנים. **אסור בייצוא**: אף אחד לא רוצה להדפיס
+   * מאתיים כרטיסים שכתוב עליהם "דנה כהן".
+   */
+  placeholders?: 'none' | 'solid' | 'ghost';
 }
 
 const DEFAULT_FONTS = {
@@ -31,13 +40,36 @@ function isRtl(value: string): boolean {
   return /[֐-׿]/.test(value);
 }
 
+function toCanvasPaint(
+  ctx: CanvasRenderingContext2D,
+  paint: Paint,
+  region: Region,
+): string | CanvasGradient {
+  if (paint.type === 'solid') return paint.color;
+  if (paint.type === 'linear') {
+    const { x1, y1, x2, y2 } = linearPoints(paint.angle, region);
+    const gradient = ctx.createLinearGradient(x1, y1, x2, y2);
+    for (const stop of paint.stops) gradient.addColorStop(stop.offset, stop.color);
+    return gradient;
+  }
+  const { cx, cy, radius } = radialParams(region);
+  const gradient = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+  for (const stop of paint.stops) gradient.addColorStop(stop.offset, stop.color);
+  return gradient;
+}
+
 /**
  * שובר טקסט לשורות לפי רוחב מרבי.
  *
  * שבירה ידנית ולא `fillText` פשוט: שם ארוך או משפט חופשי חייבים להישבר בתוך
  * הרוחב שהתבנית הקצתה, אחרת הם דורסים את הקוד וגוזלים ממנו את האזור השקט.
  */
-function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+function wrapText(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  maxLines: number,
+): string[] {
   const words = text.split(/\s+/).filter(Boolean);
   if (!words.length) return [];
 
@@ -54,7 +86,7 @@ function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number)
     }
   }
   lines.push(line);
-  return lines.slice(0, 3); // מעבר לשלוש שורות הכרטיס כבר לא קריא
+  return lines.slice(0, maxLines);
 }
 
 function drawText(
@@ -63,6 +95,7 @@ function drawText(
   value: string,
   unit: number,
   fonts: { display: string; sans: string },
+  ghost: boolean,
 ): void {
   if (!value.trim() || element.opacity === 0) return;
 
@@ -72,14 +105,14 @@ function drawText(
   ctx.save();
   ctx.font = `${element.weight} ${fontSize}px ${family}`;
   ctx.fillStyle = element.color;
-  ctx.globalAlpha = element.opacity ?? 1;
+  ctx.globalAlpha = (element.opacity ?? 1) * (ghost ? 0.34 : 1);
   ctx.textBaseline = 'top';
   ctx.direction = isRtl(value) ? 'rtl' : 'ltr';
-  if (element.tracking) ctx.letterSpacing = `${element.tracking * unit * 0.1}px`;
+  if (element.tracking) ctx.letterSpacing = `${element.tracking * unit}px`;
 
   const maxWidth = element.width * unit;
-  const lines = wrapText(ctx, value, maxWidth);
-  const lineHeight = fontSize * 1.25;
+  const lines = wrapText(ctx, value, maxWidth, element.maxLines ?? 2);
+  const lineHeight = fontSize * (element.lineHeight ?? 1.22);
 
   // המרת יישור לוגי לקואורדינטת ציור. הכרטיס עצמו תמיד LTR מבחינת מיקום —
   // 'start' הוא הקצה השמאלי — אבל הטקסט עצמו מצויר לפי כיוונו שלו.
@@ -103,6 +136,26 @@ function drawText(
   ctx.restore();
 }
 
+function drawShape(ctx: CanvasRenderingContext2D, element: ShapeElement, unit: number): void {
+  const x = element.x * unit;
+  const y = element.y * unit;
+  const w = element.width * unit;
+  const h = element.height * unit;
+
+  ctx.save();
+  ctx.globalAlpha = element.opacity ?? 1;
+  ctx.fillStyle = toCanvasPaint(ctx, element.fill, { x, y, w, h });
+
+  const path = new Path2D();
+  if (element.shape === 'ellipse') {
+    path.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+  } else {
+    path.roundRect(x, y, w, h, (element.radius ?? 0) * unit);
+  }
+  ctx.fill(path);
+  ctx.restore();
+}
+
 /**
  * מצייר את הכרטיס המלא.
  *
@@ -116,6 +169,7 @@ export async function renderCard(
   options: CardRenderOptions,
 ): Promise<HTMLCanvasElement> {
   const fonts = options.fonts ?? DEFAULT_FONTS;
+  const placeholders = options.placeholders ?? 'none';
 
   const width = Math.max(1, Math.round(options.width));
   const height = Math.round(width * (template.heightMm / template.widthMm));
@@ -129,29 +183,27 @@ export async function renderCard(
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('הדפדפן לא תומך ב-Canvas 2D');
 
-  ctx.fillStyle = template.background;
+  ctx.fillStyle = toCanvasPaint(ctx, template.background, { x: 0, y: 0, w: width, h: height });
   ctx.fillRect(0, 0, width, height);
 
   for (const element of template.elements) {
     if (element.kind === 'shape') {
-      ctx.save();
-      ctx.globalAlpha = element.opacity ?? 1;
-      ctx.fillStyle = element.color;
-      const path = new Path2D();
-      path.roundRect(
-        element.x * unit,
-        element.y * unit,
-        element.width * unit,
-        element.height * unit,
-        (element.radius ?? 0) * unit,
-      );
-      ctx.fill(path);
-      ctx.restore();
+      drawShape(ctx, element, unit);
       continue;
     }
 
     if (element.kind === 'text') {
-      drawText(ctx, element, values[element.field] ?? '', unit, fonts);
+      if (element.field === null) {
+        drawText(ctx, element, element.text ?? '', unit, fonts, false);
+        continue;
+      }
+      const filled = (values[element.field] ?? '').trim();
+      if (filled) {
+        drawText(ctx, element, filled, unit, fonts, false);
+      } else if (placeholders !== 'none') {
+        const sample = template.sample[element.field] ?? '';
+        drawText(ctx, element, sample, unit, fonts, placeholders === 'ghost');
+      }
       continue;
     }
 
@@ -159,10 +211,26 @@ export async function renderCard(
       const placement = qrOverride ?? { x: element.x, y: element.y, size: element.size };
       const side = placement.size * unit;
 
+      if (element.plate) {
+        const pad = element.plate.padding * unit;
+        ctx.save();
+        ctx.fillStyle = element.plate.fill;
+        const plate = new Path2D();
+        plate.roundRect(
+          placement.x * unit - pad,
+          placement.y * unit - pad,
+          side + pad * 2,
+          side + pad * 2,
+          element.plate.radius * unit,
+        );
+        ctx.fill(plate);
+        ctx.restore();
+      }
+
       // רינדור ב-2× מגודל היעד: הקוד מוטבע כתמונה, והמרווח מונע ריכוך בקצוות
       const qrCanvas = await renderToCanvas(qrGeometry, {
         width: Math.max(256, Math.round(side * 2)),
-        padColor: template.qrBackground,
+        padColor: element.plate?.fill ?? null,
       });
 
       ctx.drawImage(

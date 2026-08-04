@@ -140,9 +140,8 @@ export const CONTENT_TYPES: Record<ContentKind, ContentType> = {
         name: 'security',
         label: 'הצפנה',
         type: 'select',
-        half: true,
         options: [
-          { value: 'WPA', label: 'WPA / WPA2' },
+          { value: 'WPA', label: 'WPA2' },
           { value: 'WEP', label: 'WEP' },
           { value: 'nopass', label: 'ללא סיסמה' },
         ],
@@ -152,10 +151,9 @@ export const CONTENT_TYPES: Record<ContentKind, ContentType> = {
         label: 'רשת מוסתרת',
         type: 'select',
         options: [
-          { value: '', label: 'לא' },
-          { value: 'true', label: 'כן' },
+          { value: '', label: 'רגילה' },
+          { value: 'true', label: 'מוסתרת' },
         ],
-        half: true,
       },
     ],
     encode: (v) => {

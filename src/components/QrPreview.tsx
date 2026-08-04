@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { CircleCheck, Loader2, QrCode, TriangleAlert } from 'lucide-react';
+import { CircleCheck, Loader2, QrCode, SwatchBook, TriangleAlert } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { QrSvg } from './QrSvg';
 import { cn } from '@/lib/cn';
@@ -24,6 +24,9 @@ interface QrPreviewProps {
    * מה נוצר. הקוד מתכווץ כדי ששניהם יישארו על אותו מסך.
    */
   compact?: boolean;
+  /** שם העיצוב הפעיל — מוצג על כפתור בחירת העיצוב */
+  designName: string;
+  onPickDesign: () => void;
 }
 
 export function QrPreview({
@@ -35,12 +38,14 @@ export function QrPreview({
   contrast,
   animationKey,
   compact = false,
+  designName,
+  onPickDesign,
 }: QrPreviewProps): ReactNode {
   return (
     <div className="space-y-3">
       <div
         className={cn(
-          'mx-auto grid aspect-square w-full place-items-center rounded-[var(--radius-card)] p-3.5 transition-[max-width] duration-300 sm:p-4',
+          'relative mx-auto grid aspect-square w-full place-items-center rounded-[var(--radius-card)] p-3.5 transition-[max-width] duration-300 sm:p-4',
           compact ? 'max-w-[11.5rem]' : 'max-w-[15.5rem] sm:max-w-[17rem]',
           geo
             ? transparent
@@ -49,6 +54,35 @@ export function QrPreview({
             : 'border border-dashed border-border-strong',
         )}
       >
+        {/*
+          בחירת העיצוב יושבת על התצוגה עצמה ולא ברשימת ההגדרות.
+
+          זו הבחירה שמשנה את מה שרואים, ובשורה ברשימה היא נראתה שוות ערך
+          ל"גודל" ול"קוד דינמי". צמוד לקוד, המרחק בין ההחלטה לתוצאה הוא אפס.
+        */}
+        {/* מוצג רק כשיש קוד: על מצב ריק הוא מתחרה בהוראה "הדביקו קישור" */}
+        {geo && (
+          <motion.button
+            type="button"
+            onClick={onPickDesign}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            whileTap={{ scale: 0.94 }}
+            transition={fade}
+            aria-label={`בחירת עיצוב · ${designName}`}
+            className={cn(
+              // מיקום פיזי ולא לוגי: `end-1/2` בממשק RTL מודד מהשמאל ואז
+              // ההזזה מוסיפה חצי רוחב לצד הלא נכון, והכפתור יוצא מהמסגרת
+              'absolute -bottom-3.5 left-1/2 z-10 flex h-9 -translate-x-1/2 items-center gap-1.5',
+              'whitespace-nowrap rounded-full border border-border bg-surface px-3.5',
+              'text-[0.75rem] font-bold shadow-[var(--shadow-pop)] transition-colors hover:border-fg',
+            )}
+          >
+            <SwatchBook size={14} className="text-accent" aria-hidden />
+            {designName}
+          </motion.button>
+        )}
+
         <AnimatePresence mode="wait" initial={false}>
           {geo ? (
             <motion.div
@@ -88,7 +122,10 @@ export function QrPreview({
         </AnimatePresence>
       </div>
 
-      <ScanBadge check={scanCheck} contrast={contrast} visible={!!geo} />
+      {/* מרווח לכפתור שגולש מתחת למסגרת */}
+      <div className="pt-3.5">
+        <ScanBadge check={scanCheck} contrast={contrast} visible={!!geo} />
+      </div>
     </div>
   );
 }

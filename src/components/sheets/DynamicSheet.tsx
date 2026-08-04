@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   BarChart3,
+  CircleAlert,
   ExternalLink,
   Link2,
   Loader2,
@@ -13,6 +14,7 @@ import {
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Button } from '../ui/Button';
 import { Sheet } from '../ui/Sheet';
+import { useConfirm } from '../ui/Confirm';
 import { Divider, Section } from '../ui/controls';
 import { cn } from '@/lib/cn';
 import { fade, listItem, listParent, springSnappy } from '@/lib/motion';
@@ -334,6 +336,26 @@ function LinkRow({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(link.target);
   const [stats, setStats] = useState<ReturnType<typeof summarizeScans> | null>(null);
+  const confirm = useConfirm();
+
+  /** יש טיוטה שונה מהיעד השמור — סגירה שקטה כאן שווה אובדן עריכה */
+  const dirty = editing && draft.trim() !== link.target && draft.trim() !== '';
+
+  const closeEditor = async (): Promise<void> => {
+    if (
+      dirty &&
+      !(await confirm({
+        title: 'לבטל את השינוי?',
+        body: `היעד יישאר ${link.target}. השינוי שהקלדת לא נשמר.`,
+        confirmLabel: 'ביטול השינוי',
+        cancelLabel: 'חזרה לעריכה',
+      }))
+    ) {
+      return;
+    }
+    setDraft(link.target);
+    setEditing(false);
+  };
 
   useEffect(() => {
     if (!showStats || stats) return;
@@ -389,7 +411,11 @@ function LinkRow({
       </div>
 
       <div className="flex border-t border-border">
-        <RowAction icon={<Pencil size={14} />} label="עריכה" onClick={() => setEditing((v) => !v)} />
+        <RowAction
+          icon={<Pencil size={14} />}
+          label="עריכה"
+          onClick={() => (editing ? void closeEditor() : setEditing(true))}
+        />
         <RowAction icon={<BarChart3 size={14} />} label="נתונים" onClick={onToggleStats} />
         <RowAction
           icon={<Power size={14} />}
@@ -402,8 +428,23 @@ function LinkRow({
           label="מחיקה"
           tone="danger"
           onClick={() => {
-            if (!confirm('למחוק את הקוד? קודים מודפסים שמצביעים עליו יפסיקו לעבוד.')) return;
-            void deleteLink(link.id).then(onDeleted).catch(() => onError('המחיקה נכשלה'));
+            void (async () => {
+              const ok = await confirm({
+                title: 'למחוק את הקוד?',
+                body:
+                  `כל קוד מודפס שמצביע על /r/${link.id} יפסיק לעבוד, ונתוני ` +
+                  `${link.scanCount} הסריקות יימחקו. אי אפשר לשחזר.`,
+                confirmLabel: 'מחיקת הקוד',
+                tone: 'danger',
+              });
+              if (!ok) return;
+              try {
+                await deleteLink(link.id);
+                onDeleted();
+              } catch {
+                onError('המחיקה נכשלה');
+              }
+            })();
           }}
         />
       </div>
@@ -423,11 +464,44 @@ function LinkRow({
                 dir="ltr"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                className="h-11 w-full rounded-xl border border-border bg-surface-2 px-3 text-right text-[0.875rem] outline-none focus:border-fg"
+                aria-label="היעד החדש"
+                className={cn(
+                  'h-11 w-full rounded-xl border bg-surface-2 px-3 text-right text-[0.875rem] outline-none transition-colors',
+                  dirty ? 'border-warning' : 'border-border focus:border-fg',
+                )}
               />
-              <Button variant="ink" size="sm" block onClick={() => void save()}>
-                שמירת היעד החדש
-              </Button>
+
+              {/* חיווי קבוע ולא רק אזהרה בסגירה: המשתמש צריך לראות שיש משהו
+                  לשמור בזמן שהוא מסתכל על השדה, לא רק כשהוא מנסה לצאת */}
+              <AnimatePresence initial={false}>
+                {dirty && (
+                  <motion.p
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={springSnappy}
+                    className="flex items-center gap-1.5 overflow-hidden px-1 text-[0.75rem] font-semibold text-warning"
+                  >
+                    <CircleAlert size={12} aria-hidden />
+                    שינוי שלא נשמר
+                  </motion.p>
+                )}
+              </AnimatePresence>
+
+              <div className="flex gap-2">
+                <Button
+                  variant="ink"
+                  size="sm"
+                  block
+                  disabled={!dirty}
+                  onClick={() => void save()}
+                >
+                  שמירת היעד החדש
+                </Button>
+                <Button variant="soft" size="sm" onClick={() => void closeEditor()}>
+                  ביטול
+                </Button>
+              </div>
             </div>
           </motion.div>
         )}

@@ -18,12 +18,21 @@ interface Toast {
   id: number;
   message: string;
   tone: ToastTone;
+  undo?: () => void;
 }
 
 interface ToastApi {
   success: (message: string) => void;
   error: (message: string) => void;
   info: (message: string) => void;
+  /**
+   * הודעה עם ביטול.
+   *
+   * לפעולה הפיכה זו התשובה הנכונה במקום דיאלוג אישור: דיאלוג עוצר את המשתמש
+   * לפני כל מחיקה, גם כשהוא יודע בדיוק מה הוא עושה, ואחרי שלוש פעמים הוא
+   * מאשר אוטומטית. "בוטל" מציע דרך חזרה בלי לגבות מס על הפעולה הרגילה.
+   */
+  undoable: (message: string, undo: () => void) => void;
 }
 
 const ToastContext = createContext<ToastApi | null>(null);
@@ -38,17 +47,27 @@ export function ToastProvider({ children }: { children: ReactNode }): ReactNode 
   const [toasts, setToasts] = useState<Toast[]>([]);
   const seq = useRef(0);
 
-  const push = useCallback((message: string, tone: ToastTone) => {
-    const id = ++seq.current;
-    setToasts((list) => [...list.slice(-1), { id, message, tone }]);
-    setTimeout(() => setToasts((list) => list.filter((t) => t.id !== id)), tone === 'error' ? 5200 : 3200);
+  const dismiss = useCallback((id: number) => {
+    setToasts((list) => list.filter((t) => t.id !== id));
   }, []);
+
+  const push = useCallback(
+    (message: string, tone: ToastTone, undo?: () => void) => {
+      const id = ++seq.current;
+      setToasts((list) => [...list.slice(-1), { id, message, tone, undo }]);
+      // חלון הביטול ארוך יותר: צריך להספיק לקרוא, להבין, ולהחליט
+      const life = undo ? 6500 : tone === 'error' ? 5200 : 3200;
+      setTimeout(() => dismiss(id), life);
+    },
+    [dismiss],
+  );
 
   const api = useMemo<ToastApi>(
     () => ({
       success: (m) => push(m, 'success'),
       error: (m) => push(m, 'error'),
       info: (m) => push(m, 'info'),
+      undoable: (m, undo) => push(m, 'info', undo),
     }),
     [push],
   );
@@ -81,6 +100,19 @@ export function ToastProvider({ children }: { children: ReactNode }): ReactNode 
               >
                 <Icon size={16} className={cn('shrink-0', className)} aria-hidden />
                 <span>{toast.message}</span>
+
+                {toast.undo && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toast.undo?.();
+                      dismiss(toast.id);
+                    }}
+                    className="-me-2 ms-0.5 shrink-0 rounded-full bg-ink px-3 py-1.5 text-[0.8125rem] font-bold text-ink-fg transition-opacity hover:opacity-85"
+                  >
+                    ביטול
+                  </button>
+                )}
               </motion.div>
             );
           })}

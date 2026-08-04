@@ -4,7 +4,7 @@ import { forwardRef, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 import { springSnappy } from '@/lib/motion';
 
-type Variant = 'ink' | 'soft' | 'outline' | 'ghost';
+type Variant = 'ink' | 'soft' | 'outline' | 'ghost' | 'danger';
 type Size = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends React.ComponentPropsWithoutRef<'button'> {
@@ -21,6 +21,8 @@ const VARIANTS: Record<Variant, string> = {
   soft: 'bg-surface-2 text-fg hover:bg-surface-3',
   outline: 'border border-border-strong text-fg hover:bg-surface-2',
   ghost: 'text-fg-muted hover:bg-surface-2 hover:text-fg',
+  /** פעולה הרסנית בלבד. אדום מלא הוא סימן עצירה — לא צבע לקישוט. */
+  danger: 'bg-danger text-white hover:brightness-110',
 };
 
 /** כל הגבהים ≥44px — יעד המגע המינימלי בטלפון. */

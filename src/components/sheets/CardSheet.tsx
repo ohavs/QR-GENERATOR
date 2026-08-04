@@ -7,16 +7,17 @@ import { Sheet } from '../ui/Sheet';
 import { Divider, Pills, Section } from '../ui/controls';
 import { cn } from '@/lib/cn';
 import { cardMillimeters, printWidth, renderCard } from '@/lib/cards/render';
-import { CARD_TEMPLATES, TEMPLATE_BY_ID } from '@/lib/cards/templates';
-import { CARD_FIELDS, type CardState, type FieldKey, type QrElement } from '@/lib/cards/types';
+import { CARD_GROUPS, CARD_TEMPLATES, TEMPLATE_BY_ID } from '@/lib/cards/templates';
+import { FIELD_BY_KEY, type CardState, type FieldKey, type QrElement } from '@/lib/cards/types';
 import { download } from '@/lib/export';
 import { listItem, listParent, springSnappy } from '@/lib/motion';
+import { useScrollIntoView } from '@/hooks/useScrollIntoView';
 import type { QrGeometry } from '@/lib/qr/types';
 
 const QR_SIZES = [
-  { value: -8, label: 'קטן יותר' },
+  { value: -8, label: 'קטן' },
   { value: 0, label: 'רגיל' },
-  { value: 8, label: 'גדול יותר' },
+  { value: 8, label: 'גדול' },
   { value: 16, label: 'ענק' },
 ];
 
@@ -33,9 +34,13 @@ interface CardSheetProps {
 /**
  * מעצב הכרטיסיות.
  *
- * הטופס מבוסס שדות מוכנים ולא על תיבות טקסט חופשיות: מי שמכין כרטיס ביקור
- * חושב במונחי "שם", "טלפון", "תפקיד" — לא במונחי "אלמנט טקסט במיקום 8,20".
+ * הטופס מבוסס שדות מוכנים ולא על תיבות טקסט חופשיות: מי שמכין שלט לדלפק
+ * חושב במונחי "כותרת" ו"שם העסק" — לא במונחי "אלמנט טקסט במיקום 8,20".
  * מיקום הקוד וגודלו נשארים בשליטה ידנית, כי שם באמת יש טעם אישי.
+ *
+ * שדה ריק מצויר כדוגמה שקופה ולא נעלם. תבנית שמאבדת חצי מהעיצוב שלה ברגע
+ * שנכנסים אליה נראית שבורה, והמשתמש לא יודע מה בכלל אמור להיות שם — זו
+ * בדיוק הסיבה שהגרסה הקודמת הרגישה כאילו "לא קורה כלום".
  */
 export function CardSheet({
   open,
@@ -47,7 +52,9 @@ export function CardSheet({
   fileName,
 }: CardSheetProps): ReactNode {
   const [busy, setBusy] = useState<'png' | 'pdf' | null>(null);
+  const [group, setGroup] = useState<(typeof CARD_GROUPS)[number]['id']>('scan');
   const stageRef = useRef<HTMLDivElement>(null);
+  const scrollActiveIntoView = useScrollIntoView<HTMLButtonElement>();
 
   const template = TEMPLATE_BY_ID.get(state.templateId) ?? CARD_TEMPLATES[0];
 
@@ -99,8 +106,10 @@ export function CardSheet({
       if (!geometry) return;
       setBusy(format);
       try {
+        // ללא דוגמאות: אף אחד לא רוצה להדפיס מאתיים כרטיסים עם "דנה כהן"
         const canvas = await renderCard(template, state.values, geometry, state.qrOverride, {
           width: printWidth(template),
+          placeholders: 'none',
         });
 
         if (format === 'png') {
@@ -113,7 +122,7 @@ export function CardSheet({
           const { canvasToPdf } = await import('@/lib/pdf');
           const blob = await canvasToPdf(canvas, {
             ...cardMillimeters(template),
-            title: state.values.name || template.name,
+            title: state.values.company || state.values.name || template.name,
           });
           download(blob, `${fileName}-card.pdf`);
         }
@@ -126,16 +135,31 @@ export function CardSheet({
     [geometry, template, state, fileName, onError],
   );
 
-  const visibleFields = CARD_FIELDS.filter(
-    (field) => template.usesFields.includes(field.key) || state.values[field.key],
-  );
+  const visible = CARD_TEMPLATES.filter((t) => t.group === group);
+  const filled = template.usesFields.filter((key) => (state.values[key] ?? '').trim()).length;
+
+  // בידוד דו-כיווני: בלי התווים האלה "90×120" מוצג הפוך בתוך משפט עברי
+  const dimensions = `⁦${template.widthMm}×${template.heightMm}⁩`;
+
+  /*
+    התצוגה הדביקה נמדדת בגובה ולא ברוחב.
+
+    התבניות נעות מ-85×55 ועד 148×210, ומגבלת רוחב הייתה נותנת לתבנית A5 גובה
+    כפול מזה של כרטיס ביקור — היא לבדה הייתה ממלאת את הגיליון ומסתירה את
+    הטופס שמתחתיה. גובה קבוע נותן אותה נוכחות לכל התבניות.
+  */
+  const stageHeight = 8.5;
+  const stageStyle = {
+    height: `${stageHeight}rem`,
+    width: `${(stageHeight * template.widthMm) / template.heightMm}rem`,
+  };
 
   return (
     <Sheet
       open={open}
       onClose={onClose}
       title="כרטיסייה מעוצבת"
-      subtitle={`${template.widthMm}×${template.heightMm} מ״מ · מוכן להדפסה`}
+      subtitle={`${template.name} · ${dimensions} מ״מ`}
       footer={
         <div className="flex gap-2">
           <Button
@@ -147,7 +171,7 @@ export function CardSheet({
             onClick={() => void exportCard('pdf')}
             icon={<FileText size={18} />}
           >
-            הורדת PDF
+            הורדת PDF להדפסה
           </Button>
           <Button
             variant="soft"
@@ -156,21 +180,26 @@ export function CardSheet({
             loading={busy === 'png'}
             onClick={() => void exportCard('png')}
             icon={<Download size={18} />}
-            className="shrink-0 px-4"
+            aria-label="הורדת PNG"
+            className="shrink-0 !px-4"
           >
             PNG
           </Button>
         </div>
       }
     >
-      {/* ── תצוגה חיה עם ידית גרירה לקוד ────────────────────────── */}
-      <div className="sticky top-0 z-10 -mx-5 bg-surface px-5 pb-3 pt-1">
-        <div ref={stageRef} className="relative">
+      {/* ── תצוגה חיה עם ידית גרירה לקוד ──────────────────────────
+          מוגבלת בגובה ולא ברוחב: תבנית A5 היא כמעט 1:1.4, ובלי חסם גובה
+          היא לבדה הייתה ממלאת את כל הגיליון ומסתירה את כל מה שמתחתיה. */}
+      <div className="sticky top-0 z-10 -mx-5 border-b border-border bg-surface px-5 pb-2.5 pt-1">
+        <div ref={stageRef} className="relative mx-auto" style={stageStyle}>
           <CardCanvas
             template={template}
             values={state.values}
             geometry={geometry}
             qrOverride={state.qrOverride}
+            placeholders="ghost"
+            className="border border-black/10 dark:border-white/12"
           />
 
           {geometry && (
@@ -180,7 +209,6 @@ export function CardSheet({
               dragMomentum={false}
               dragElastic={0}
               onDrag={(_, info) => handleDrag(info.delta.x, info.delta.y)}
-              onDragEnd={() => undefined}
               whileDrag={{ scale: 1.04 }}
               transition={springSnappy}
               aria-label="גרירת הקוד למיקום אחר"
@@ -193,40 +221,51 @@ export function CardSheet({
                 // הגרירה משנה את המצב ולא את מיקום האלמנט — התמונה עצמה מצוירת מחדש
                 transform: 'none',
               }}
-            >
-              <span className="pointer-events-none absolute -top-2 end-1/2 translate-x-1/2 rounded-full bg-accent px-1.5 py-0.5 text-[0.5625rem] font-bold text-accent-fg opacity-0 transition-opacity group-hover:opacity-100">
-                <Move size={9} aria-hidden />
-              </span>
-            </motion.button>
+            />
           )}
         </div>
 
         <p className="mt-2 flex items-center justify-center gap-1.5 text-[0.6875rem] text-fg-subtle">
           <Move size={11} aria-hidden />
-          אפשר לגרור את הקוד למקום אחר
+          {filled === 0
+            ? 'הטקסט האפור הוא דוגמה — הוא לא יודפס'
+            : 'אפשר לגרור את הקוד למקום אחר'}
         </p>
       </div>
 
-      {/* ── תבניות ────────────────────────────────────────────── */}
+      {/* ── תבניות ───────────────────────────────────────────────
+          שורה נגללת ולא רשת דו-טורית: הרשת דחפה את הטופס אל מתחת לקפל,
+          והתצוגה הדביקה חתכה אותה באמצע. */}
       <Section title="תבנית">
+        <Pills
+          label="קבוצת תבניות"
+          layout="grid"
+          columns={3}
+          value={group}
+          onChange={setGroup}
+          options={CARD_GROUPS.map((g) => ({ value: g.id, label: g.label }))}
+        />
+
         <motion.div
+          key={group}
           variants={listParent}
           initial="hidden"
           animate="show"
-          className="grid grid-cols-2 gap-2.5"
+          className="rail -mx-5 flex gap-2.5 px-5 pt-1"
         >
-          {CARD_TEMPLATES.map((option) => {
+          {visible.map((option) => {
             const active = option.id === template.id;
             return (
               <motion.button
                 key={option.id}
+                ref={active ? scrollActiveIntoView : undefined}
                 variants={listItem}
                 type="button"
                 onClick={() => onChange({ ...state, templateId: option.id, qrOverride: null })}
                 whileTap={{ scale: 0.96 }}
                 transition={springSnappy}
                 aria-pressed={active}
-                className="text-start"
+                className="w-[7.5rem] shrink-0 text-start"
               >
                 <span
                   className={cn(
@@ -239,7 +278,9 @@ export function CardSheet({
                     values={state.values}
                     geometry={geometry}
                     qrOverride={null}
-                    width={420}
+                    width={340}
+                    placeholders="solid"
+                    className="border border-black/10 dark:border-white/12"
                   />
                   {active && (
                     <span className="absolute end-1.5 top-1.5 grid h-5 w-5 place-items-center rounded-full bg-ink text-ink-fg">
@@ -250,51 +291,39 @@ export function CardSheet({
                 <span className="mt-1.5 block truncate px-0.5 text-[0.8125rem] font-semibold">
                   {option.name}
                 </span>
-                <span className="block truncate px-0.5 text-[0.6875rem] text-fg-subtle">
-                  {option.blurb}
-                </span>
               </motion.button>
             );
           })}
         </motion.div>
+
+        <p className="px-1 text-[0.75rem] leading-relaxed text-fg-muted">{template.blurb}</p>
       </Section>
 
       <Divider />
 
-      {/* ── תוכן ──────────────────────────────────────────────── */}
-      <Section title="תוכן">
+      {/* ── תוכן ───────────────────────────────────────────────── */}
+      <Section title="תוכן" hint="שדה שנשאר ריק פשוט לא יודפס">
         <div className="space-y-2.5">
-          {visibleFields.map((field) => (
-            <label key={field.key} className="block">
-              <span className="mb-1 block px-1 text-[0.75rem] font-semibold text-fg-muted">
-                {field.label}
-              </span>
-              <input
-                type="text"
-                dir={field.dir === 'ltr' ? 'ltr' : 'auto'}
-                value={state.values[field.key] ?? ''}
-                onChange={(e) => setField(field.key, e.target.value)}
-                placeholder={field.placeholder}
-                className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-right text-[0.875rem] font-medium outline-none transition-colors placeholder:font-normal placeholder:text-fg-subtle focus:border-fg"
-              />
-            </label>
-          ))}
+          {template.usesFields.map((key) => {
+            const field = FIELD_BY_KEY.get(key);
+            if (!field) return null;
+            return (
+              <label key={key} className="block">
+                <span className="mb-1 block px-1 text-[0.75rem] font-semibold text-fg-muted">
+                  {field.label}
+                </span>
+                <input
+                  type="text"
+                  dir={field.dir === 'ltr' ? 'ltr' : 'auto'}
+                  value={state.values[key] ?? ''}
+                  onChange={(e) => setField(key, e.target.value)}
+                  placeholder={template.sample[key] ?? field.placeholder}
+                  className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-right text-[0.875rem] font-medium outline-none transition-colors placeholder:font-normal placeholder:text-fg-subtle focus:border-fg"
+                />
+              </label>
+            );
+          })}
         </div>
-
-        {visibleFields.length < CARD_FIELDS.length && (
-          <div className="rail -mx-5 flex gap-2 px-5 pt-1">
-            {CARD_FIELDS.filter((f) => !visibleFields.includes(f)).map((field) => (
-              <button
-                key={field.key}
-                type="button"
-                onClick={() => setField(field.key, ' ')}
-                className="h-9 shrink-0 rounded-full bg-surface-2 px-3.5 text-[0.75rem] font-semibold text-fg-muted transition-colors hover:text-fg"
-              >
-                + {field.label}
-              </button>
-            ))}
-          </div>
-        )}
       </Section>
 
       <Divider />
@@ -305,10 +334,7 @@ export function CardSheet({
           label="גודל הקוד"
           layout="grid"
           columns={4}
-          options={QR_SIZES.map((option) => ({
-            value: option.value,
-            label: option.label,
-          }))}
+          options={QR_SIZES.map((option) => ({ value: option.value, label: option.label }))}
           value={
             QR_SIZES.reduce((best, option) =>
               Math.abs((baseQr?.size ?? 30) + option.value - qr.size) <

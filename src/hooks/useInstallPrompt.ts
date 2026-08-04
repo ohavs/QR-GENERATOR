@@ -5,24 +5,44 @@ interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
 }
 
-/**
- * חושף כפתור "התקנה" רק כשהדפדפן באמת מציע התקנה.
- *
- * ב-iOS אין `beforeinstallprompt`, ולכן מוחזר `iosHint` שמאפשר להסביר
- * למשתמש את הדרך הידנית (שיתוף ← הוספה למסך הבית).
- */
-export function useInstallPrompt(): {
-  canInstall: boolean;
+const DISMISSED_KEY = 'qr-studio:install-dismissed';
+
+function isStandalone(): boolean {
+  if (typeof window === 'undefined') return false;
+  return (
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (navigator as { standalone?: boolean }).standalone === true
+  );
+}
+
+function isIos(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) && !/crios|fxios/i.test(navigator.userAgent);
+}
+
+export interface InstallState {
+  /** אפשר להציע התקנה — או דרך הדפדפן, או בהוראות ידניות */
+  available: boolean;
+  /** אין API להתקנה (iOS) — צריך להסביר ידנית */
+  manual: boolean;
   installed: boolean;
-  iosHint: boolean;
+  dismissed: boolean;
   install: () => Promise<boolean>;
-} {
+  dismiss: () => void;
+}
+
+/**
+ * זמינות ההתקנה.
+ *
+ * ב-Chrome/Edge מגיע `beforeinstallprompt` ואפשר לפתוח את דיאלוג ההתקנה
+ * המקורי. ב-iOS אין API כזה בכלל, ולכן מוחזר `manual` והממשק מסביר את
+ * הדרך הידנית במקום להעמיד פנים שיש כפתור.
+ */
+export function useInstallPrompt(): InstallState {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
-  const [installed, setInstalled] = useState(
-    () =>
-      typeof window !== 'undefined' &&
-      (window.matchMedia('(display-mode: standalone)').matches ||
-        (navigator as { standalone?: boolean }).standalone === true),
+  const [installed, setInstalled] = useState(isStandalone);
+  const [dismissed, setDismissed] = useState(
+    () => typeof localStorage !== 'undefined' && localStorage.getItem(DISMISSED_KEY) === '1',
   );
 
   useEffect(() => {
@@ -50,15 +70,23 @@ export function useInstallPrompt(): {
     return outcome === 'accepted';
   }, [deferred]);
 
-  const isIos =
-    typeof navigator !== 'undefined' &&
-    /iphone|ipad|ipod/i.test(navigator.userAgent) &&
-    !/crios|fxios/i.test(navigator.userAgent);
+  const dismiss = useCallback(() => {
+    setDismissed(true);
+    try {
+      localStorage.setItem(DISMISSED_KEY, '1');
+    } catch {
+      // מצב פרטי — הסירוב פשוט לא ישרוד רענון
+    }
+  }, []);
+
+  const manual = isIos() && !deferred;
 
   return {
-    canInstall: !!deferred && !installed,
+    available: !installed && (!!deferred || (isIos() && !installed)),
+    manual,
     installed,
-    iosHint: isIos && !installed && !deferred,
+    dismissed,
     install,
+    dismiss,
   };
 }

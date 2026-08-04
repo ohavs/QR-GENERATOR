@@ -1,82 +1,94 @@
 @import 'tailwindcss';
 
 /*
-  QR Studio — טוקני עיצוב
-  ----------------------
-  הפלטה נגזרה ממנוע ui-ux-pro-max (כלי יצירה: סגול-עורך + ציאן-פילטר),
-  והותאמה לעברית: Rubik לכותרות ו-Heebo לגוף — שתיהן בעלות כיסוי עברי מלא.
+  QR Studio — מערכת עיצוב
+  ───────────────────────
+  שני עקרונות שמכתיבים את כל השאר:
+
+  1. מונוכרום + צבע אחד. הבסיס אפור-לבן ניטרלי, וסגול מופיע רק כדי לסמן
+     בחירה. קוד ה-QR עצמו הוא הצבע על המסך — הממשק לא מתחרה בו.
+  2. גבולות במקום צללים. עומק נוצר מהיררכיית משטחים ומרווחים, לא מהצללות.
+
+  הטיפוגרפיה נשארת Rubik לכותרות ו-Heebo לגוף.
 */
 
 @theme {
   --font-display: 'Rubik', system-ui, sans-serif;
   --font-sans: 'Heebo', 'Rubik', system-ui, sans-serif;
 
-  --radius-card: 1.25rem;
+  --radius-sheet: 1.75rem;
+  --radius-card: 1.5rem;
+  --radius-tile: 1.125rem;
   --radius-control: 0.875rem;
 
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 :root {
   color-scheme: light;
 
-  --bg: #f7f7fb;
-  --bg-veil: #ede9fe;
+  --bg: #f4f4f5;
   --surface: #ffffff;
-  --surface-2: #f1f5f9;
-  --surface-3: #e9edf3;
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
-  --fg: #0f172a;
-  --fg-muted: #5b6b83;
-  --fg-subtle: #8494a8;
+  --surface-2: #f4f4f5;
+  --surface-3: #e8e8ea;
+  --border: #e7e7ea;
+  --border-strong: #d4d4d8;
 
-  --primary: #7c3aed;
-  --primary-hover: #6d28d9;
-  --primary-fg: #ffffff;
-  --primary-soft: #f3eeff;
-  --accent: #0891b2;
-  --success: #059669;
+  --fg: #0b0b0f;
+  --fg-muted: #71717a;
+  --fg-subtle: #a1a1aa;
+
+  /* כפתור ראשי: דיו על בהיר. במצב כהה הוא מתהפך. */
+  --ink: #0b0b0f;
+  --ink-fg: #ffffff;
+  --ink-hover: #27272a;
+
+  --accent: #5b4bff;
+  --accent-fg: #ffffff;
+  --accent-soft: #eeecff;
+
+  --success: #16a34a;
+  --warning: #b45309;
   --danger: #dc2626;
-  --ring: #7c3aed;
+  --ring: #5b4bff;
 
-  --shadow-sm: 0 1px 2px rgb(15 23 42 / 0.06), 0 1px 3px rgb(15 23 42 / 0.05);
-  --shadow-md: 0 4px 12px rgb(15 23 42 / 0.07), 0 2px 4px rgb(15 23 42 / 0.04);
-  --shadow-lg: 0 18px 40px -12px rgb(15 23 42 / 0.18), 0 4px 12px rgb(15 23 42 / 0.06);
+  --shadow-sheet: 0 -8px 40px rgb(9 9 11 / 0.12);
+  --shadow-pop: 0 12px 32px -8px rgb(9 9 11 / 0.16), 0 2px 8px rgb(9 9 11 / 0.06);
 }
 
 .dark {
   color-scheme: dark;
 
-  --bg: #0b1120;
-  --bg-veil: #1e1b4b;
-  --surface: #131c2e;
-  --surface-2: #1a2437;
-  --surface-3: #223049;
-  --border: #26334a;
-  --border-strong: #35455f;
-  --fg: #f1f5f9;
-  --fg-muted: #9aabc2;
-  --fg-subtle: #6d7f96;
+  --bg: #09090b;
+  --surface: #141417;
+  --surface-2: #1c1c21;
+  --surface-3: #26262c;
+  --border: #26262c;
+  --border-strong: #3f3f46;
 
-  --primary: #a78bfa;
-  --primary-hover: #c4b5fd;
-  --primary-fg: #1e1b4b;
-  --primary-soft: #221a3d;
-  --accent: #22d3ee;
-  --success: #34d399;
+  --fg: #fafafa;
+  --fg-muted: #a1a1aa;
+  --fg-subtle: #71717a;
+
+  --ink: #fafafa;
+  --ink-fg: #09090b;
+  --ink-hover: #e4e4e7;
+
+  --accent: #8b7bff;
+  --accent-fg: #0b0b18;
+  --accent-soft: #1e1b34;
+
+  --success: #4ade80;
+  --warning: #fbbf24;
   --danger: #f87171;
-  --ring: #a78bfa;
+  --ring: #8b7bff;
 
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-md: 0 4px 14px rgb(0 0 0 / 0.45);
-  --shadow-lg: 0 20px 45px -12px rgb(0 0 0 / 0.65), 0 4px 12px rgb(0 0 0 / 0.4);
+  --shadow-sheet: 0 -8px 40px rgb(0 0 0 / 0.6);
+  --shadow-pop: 0 12px 32px -8px rgb(0 0 0 / 0.7), 0 2px 8px rgb(0 0 0 / 0.4);
 }
 
 @theme inline {
   --color-bg: var(--bg);
-  --color-bg-veil: var(--bg-veil);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
   --color-surface-3: var(--surface-3);
@@ -85,12 +97,14 @@
   --color-fg: var(--fg);
   --color-fg-muted: var(--fg-muted);
   --color-fg-subtle: var(--fg-subtle);
-  --color-primary: var(--primary);
-  --color-primary-hover: var(--primary-hover);
-  --color-primary-fg: var(--primary-fg);
-  --color-primary-soft: var(--primary-soft);
+  --color-ink: var(--ink);
+  --color-ink-fg: var(--ink-fg);
+  --color-ink-hover: var(--ink-hover);
   --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-soft: var(--accent-soft);
   --color-success: var(--success);
+  --color-warning: var(--warning);
   --color-danger: var(--danger);
   --color-ring: var(--ring);
 }
@@ -102,32 +116,33 @@
 
   html {
     -webkit-text-size-adjust: 100%;
-    scroll-behavior: smooth;
+    /* מונע "גרירת גומי" של העמוד כשגוררים גיליון תחתון */
+    overscroll-behavior-y: none;
   }
 
   body {
     background-color: var(--bg);
     color: var(--fg);
     font-family: var(--font-sans);
-    font-feature-settings: 'kern';
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     min-height: 100dvh;
     overflow-x: hidden;
+    /* מונע הדגשה כחולה בהקשה בטלפון */
+    -webkit-tap-highlight-color: transparent;
   }
 
   h1,
   h2,
   h3 {
     font-family: var(--font-display);
-    letter-spacing: -0.01em;
+    letter-spacing: -0.02em;
   }
 
-  /* מצב מיקוד גלוי לניווט מקלדת — לא מוסר לעולם */
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
-    border-radius: 6px;
+    border-radius: 8px;
   }
 
   button:not(:disabled),
@@ -137,59 +152,12 @@
     cursor: pointer;
   }
 
-  input[type='range'] {
-    accent-color: var(--primary);
-  }
-
   ::selection {
-    background: color-mix(in oklab, var(--primary) 28%, transparent);
-  }
-}
-
-@layer components {
-  .card {
-    background-color: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-card);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .scroll-fade {
-    scrollbar-width: thin;
-    scrollbar-color: var(--border-strong) transparent;
-  }
-
-  .scroll-fade::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
-
-  .scroll-fade::-webkit-scrollbar-thumb {
-    background: var(--border-strong);
-    border-radius: 99px;
-  }
-
-  .scroll-fade::-webkit-scrollbar-track {
-    background: transparent;
+    background: color-mix(in oklab, var(--accent) 26%, transparent);
   }
 }
 
 @layer utilities {
-  /* רקע אווירה עדין — נותן עומק בלי להעמיס */
-  .aurora-bg::before {
-    content: '';
-    position: fixed;
-    inset: -30% -10% auto -10%;
-    height: 60vh;
-    pointer-events: none;
-    z-index: 0;
-    background:
-      radial-gradient(45% 55% at 20% 0%, color-mix(in oklab, var(--primary) 22%, transparent), transparent 70%),
-      radial-gradient(40% 50% at 80% 10%, color-mix(in oklab, var(--accent) 18%, transparent), transparent 70%);
-    filter: blur(8px);
-    opacity: 0.75;
-  }
-
   /* תבנית שחמט להמחשת שקיפות מאחורי הקוד */
   .checkerboard {
     background-image:
@@ -197,48 +165,23 @@
       linear-gradient(-45deg, var(--surface-3) 25%, transparent 25%),
       linear-gradient(45deg, transparent 75%, var(--surface-3) 75%),
       linear-gradient(-45deg, transparent 75%, var(--surface-3) 75%);
-    background-size: 16px 16px;
-    background-position:
-      0 0,
-      0 8px,
-      8px -8px,
-      -8px 0;
+    background-size: 18px 18px;
+    background-position: 0 0, 0 9px, 9px -9px, -9px 0;
   }
 
-  .animate-in-up {
-    animation: in-up 0.45s var(--ease-out-soft) both;
+  /* גלילה אופקית בלי פס גלילה גלוי — לשורות צ'יפים */
+  .rail {
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
   }
 
-  .animate-pop {
-    animation: pop 0.35s var(--ease-spring) both;
+  .rail::-webkit-scrollbar {
+    display: none;
   }
-}
 
-@keyframes in-up {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes pop {
-  from {
-    opacity: 0;
-    transform: scale(0.94);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-@keyframes shimmer {
-  to {
-    background-position: -200% 0;
+  .safe-b {
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
 

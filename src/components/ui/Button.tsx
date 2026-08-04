@@ -1,11 +1,13 @@
 import { Loader2 } from 'lucide-react';
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { motion } from 'framer-motion';
+import { forwardRef, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
+import { springSnappy } from '@/lib/motion';
 
-type Variant = 'primary' | 'secondary' | 'ghost' | 'outline';
+type Variant = 'ink' | 'soft' | 'outline' | 'ghost';
 type Size = 'sm' | 'md' | 'lg';
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends React.ComponentPropsWithoutRef<'button'> {
   variant?: Variant;
   size?: Size;
   loading?: boolean;
@@ -14,38 +16,39 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANTS: Record<Variant, string> = {
-  primary:
-    'bg-primary text-primary-fg shadow-[var(--shadow-md)] hover:bg-primary-hover hover:shadow-[var(--shadow-lg)] active:shadow-[var(--shadow-sm)]',
-  secondary: 'bg-surface-2 text-fg hover:bg-surface-3 border border-border',
-  outline: 'border border-border-strong text-fg hover:bg-surface-2 hover:border-primary',
+  /** הכפתור הראשי: דיו מלא. אחד כזה במסך, לפעולה העיקרית בלבד. */
+  ink: 'bg-ink text-ink-fg hover:bg-ink-hover',
+  soft: 'bg-surface-2 text-fg hover:bg-surface-3',
+  outline: 'border border-border-strong text-fg hover:bg-surface-2',
   ghost: 'text-fg-muted hover:bg-surface-2 hover:text-fg',
 };
 
+/** כל הגבהים ≥44px — יעד המגע המינימלי בטלפון. */
 const SIZES: Record<Size, string> = {
-  // 44px+ בגובה — עומד בדרישת יעד המגע המינימלי
-  sm: 'h-10 px-3.5 text-sm gap-1.5 rounded-xl',
-  md: 'h-11 px-4 text-sm gap-2 rounded-[var(--radius-control)]',
-  lg: 'h-13 px-6 text-base gap-2.5 rounded-2xl',
+  sm: 'h-11 px-4 text-sm gap-1.5',
+  md: 'h-12 px-5 text-[0.9375rem] gap-2',
+  lg: 'h-14 px-6 text-base gap-2.5',
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = 'secondary', size = 'md', loading, icon, block, className, children, disabled, ...rest },
+  { variant = 'soft', size = 'md', loading, icon, block, className, children, disabled, ...rest },
   ref,
 ) {
   return (
-    <button
+    <motion.button
       ref={ref}
+      whileTap={disabled || loading ? undefined : { scale: 0.97 }}
+      transition={springSnappy}
       disabled={disabled || loading}
       className={cn(
-        'inline-flex select-none items-center justify-center font-semibold',
-        'transition-[background-color,color,box-shadow,transform,border-color] duration-200 ease-[var(--ease-out-soft)]',
-        'active:scale-[0.97] disabled:pointer-events-none disabled:opacity-45',
+        'inline-flex select-none items-center justify-center rounded-full font-semibold',
+        'transition-colors duration-200 disabled:pointer-events-none disabled:opacity-40',
         VARIANTS[variant],
         SIZES[size],
         block && 'w-full',
         className,
       )}
-      {...rest}
+      {...(rest as React.ComponentPropsWithoutRef<typeof motion.button>)}
     >
       {loading ? (
         <Loader2 size={17} className="animate-spin" aria-hidden />
@@ -53,6 +56,22 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
         icon && <span className="shrink-0 [&>svg]:block">{icon}</span>
       )}
       {children}
-    </button>
+    </motion.button>
+  );
+});
+
+/** כפתור אייקון עגול — לפעולות משניות בכותרת ובשורות. */
+export const IconButton = forwardRef<HTMLButtonElement, ButtonProps>(function IconButton(
+  { className, children, ...rest },
+  ref,
+) {
+  return (
+    <Button
+      ref={ref}
+      className={cn('aspect-square !px-0', className)}
+      {...rest}
+    >
+      {children}
+    </Button>
   );
 });

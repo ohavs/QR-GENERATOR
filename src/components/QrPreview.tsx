@@ -1,13 +1,11 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { QrCode, ScanLine, TriangleAlert } from 'lucide-react';
+import { CircleCheck, Loader2, QrCode, TriangleAlert } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { QrSvg } from './QrSvg';
-import { ScanStatus } from './ScanStatus';
 import { cn } from '@/lib/cn';
 import type { ScanContrast } from '@/lib/contrast';
+import { EASE_OUT, fade } from '@/lib/motion';
 import type { QrGeometry } from '@/lib/qr/types';
-import { describeSize, type SizePreset } from '@/lib/sizes';
-import { shortenForDisplay } from '@/lib/url';
 import type { ScanCheckState } from '@/hooks/useScanCheck';
 
 interface QrPreviewProps {
@@ -15,12 +13,9 @@ interface QrPreviewProps {
   error: string | null;
   isEmpty: boolean;
   transparent: boolean;
-  designName: string;
-  size: SizePreset;
-  value: string;
   scanCheck: ScanCheckState;
   contrast: ScanContrast;
-  /** מפתח שמשתנה בכל החלפת עיצוב — מפעיל את אנימציית המעבר */
+  /** משתנה בכל שינוי חזותי — מפעיל את מעבר התצוגה */
   animationKey: string;
 }
 
@@ -29,85 +24,133 @@ export function QrPreview({
   error,
   isEmpty,
   transparent,
-  designName,
-  size,
-  value,
   scanCheck,
   contrast,
   animationKey,
 }: QrPreviewProps): ReactNode {
   return (
-    <div className="card overflow-hidden">
-      <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <ScanLine size={16} className="shrink-0 text-primary" aria-hidden />
-          <h2 className="truncate text-sm font-bold">תצוגה מקדימה</h2>
-        </div>
-        {geo && (
-          <span className="shrink-0 rounded-lg bg-surface-2 px-2 py-1 font-mono text-[11px] text-fg-muted tabular-nums">
-            {describeSize(size, geo.boardHeight / geo.boardSize)}
-          </span>
-        )}
-      </div>
-
+    <div className="space-y-3">
       <div
         className={cn(
-          'relative grid place-items-center p-5 sm:p-7',
-          transparent && geo && 'checkerboard',
+          'mx-auto grid aspect-square w-full max-w-[15.5rem] place-items-center rounded-[var(--radius-card)] p-3.5 sm:max-w-[17rem] sm:p-4',
+          geo
+            ? transparent
+              ? 'checkerboard border border-border'
+              : 'border border-border bg-surface'
+            : 'border border-dashed border-border-strong',
         )}
       >
-        <div className="w-full max-w-[19rem]">
-          <AnimatePresence mode="wait" initial={false}>
-            {geo ? (
-              <motion.div
-                key={animationKey}
-                initial={{ opacity: 0, scale: 0.96, filter: 'blur(4px)' }}
-                animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, scale: 0.98, filter: 'blur(2px)' }}
-                transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-                className="drop-shadow-[0_12px_28px_rgb(15_23_42_/_0.14)]"
-              >
-                <QrSvg geo={geo} title={`קוד QR עבור ${value}`} className="w-full" />
-              </motion.div>
-            ) : (
-              <motion.div
-                key={error ? 'error' : 'empty'}
-                initial={{ opacity: 0, y: 6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                className="flex aspect-square flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-border-strong px-6 text-center"
-              >
-                {error ? (
-                  <>
-                    <TriangleAlert size={30} className="text-danger" aria-hidden />
-                    <p className="text-sm font-medium leading-relaxed text-fg-muted">{error}</p>
-                  </>
-                ) : (
-                  <>
-                    <QrCode size={34} className="text-fg-subtle" aria-hidden />
-                    <p className="text-sm font-medium text-fg-muted">
-                      {isEmpty ? 'הדביקו קישור למעלה והקוד ייווצר מיד' : 'מחשבים…'}
-                    </p>
-                  </>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+        <AnimatePresence mode="wait" initial={false}>
+          {geo ? (
+            <motion.div
+              key={animationKey}
+              initial={{ opacity: 0, scale: 0.94 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.97 }}
+              transition={{ duration: 0.3, ease: EASE_OUT }}
+              className="w-full"
+            >
+              <QrSvg geo={geo} title="קוד QR" className="w-full" />
+            </motion.div>
+          ) : (
+            <motion.div
+              key={error ? 'error' : 'empty'}
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={fade}
+              className="flex flex-col items-center gap-3 px-8 text-center"
+            >
+              {error ? (
+                <>
+                  <TriangleAlert size={26} className="text-danger" aria-hidden />
+                  <p className="text-[0.8125rem] leading-relaxed text-fg-muted">{error}</p>
+                </>
+              ) : (
+                <>
+                  <QrCode size={30} className="text-fg-subtle" aria-hidden />
+                  <p className="text-[0.8125rem] text-fg-muted">
+                    {isEmpty ? 'הדביקו קישור והקוד ייווצר מיד' : 'מחשבים…'}
+                  </p>
+                </>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
-      {geo && (
-        <>
-          <ScanStatus check={scanCheck} contrast={contrast} />
-          <div className="flex items-center justify-between gap-3 border-t border-border bg-surface-2 px-4 py-2.5">
-            <span className="truncate text-xs text-fg-muted" dir="ltr">
-              {shortenForDisplay(value, 34)}
-            </span>
-            <span className="shrink-0 text-xs font-semibold text-primary">{designName}</span>
-          </div>
-        </>
-      )}
+      <ScanBadge check={scanCheck} contrast={contrast} visible={!!geo} />
     </div>
+  );
+}
+
+/**
+ * תגית תוצאת בדיקת הסריקה.
+ *
+ * ממוקמת מתחת לקוד ולא בתוך כרטיס נפרד: זו עובדה על מה שרואים למעלה,
+ * ולא הגדרה בפני עצמה.
+ */
+function ScanBadge({
+  check,
+  contrast,
+  visible,
+}: {
+  check: ScanCheckState;
+  contrast: ScanContrast;
+  visible: boolean;
+}): ReactNode {
+  if (!visible || check === 'idle' || check === 'unknown') return null;
+
+  const state = (():
+    | { tone: 'muted' | 'good' | 'warn' | 'bad'; icon: ReactNode; text: string }
+    | null => {
+    if (check === 'checking') {
+      return {
+        tone: 'muted',
+        icon: <Loader2 size={13} className="animate-spin" aria-hidden />,
+        text: 'בודקים סריקה',
+      };
+    }
+    if (check === 'ok') {
+      return contrast.risk === 'fair'
+        ? {
+            tone: 'warn',
+            icon: <TriangleAlert size={13} aria-hidden />,
+            text: `נסרק, אך הניגודיות נמוכה (${contrast.ratio.toFixed(1)}:1)`,
+          }
+        : { tone: 'good', icon: <CircleCheck size={13} aria-hidden />, text: 'נבדק ונסרק בהצלחה' };
+    }
+    return {
+      tone: 'bad',
+      icon: <TriangleAlert size={13} aria-hidden />,
+      text: contrast.risk === 'poor' ? 'הניגודיות נמוכה מדי לסריקה' : 'הקוד לא נקרא בבדיקה',
+    };
+  })();
+
+  if (!state) return null;
+
+  const tones = {
+    muted: 'text-fg-subtle',
+    good: 'text-success',
+    warn: 'text-warning',
+    bad: 'text-danger',
+  } as const;
+
+  return (
+    <motion.p
+      key={state.text}
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={fade}
+      role="status"
+      aria-live="polite"
+      className={cn(
+        'flex items-center justify-center gap-1.5 text-center text-xs font-medium',
+        tones[state.tone],
+      )}
+    >
+      {state.icon}
+      {state.text}
+    </motion.p>
   );
 }

@@ -1,7 +1,8 @@
-import { ClipboardPaste, Info, Link2, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { ClipboardPaste, Link2, X } from 'lucide-react';
 import { useCallback, useRef, type ReactNode } from 'react';
-import { Button } from './ui/Button';
 import { cn } from '@/lib/cn';
+import { fade, springSnappy } from '@/lib/motion';
 
 /** התו החזק הראשון הוא עברי/ערבי — כלומר הטקסט עצמו RTL. */
 function isRtlText(value: string): boolean {
@@ -11,7 +12,7 @@ function isRtlText(value: string): boolean {
 
 interface UrlInputProps {
   value: string;
-  onChange: (v: string) => void;
+  onChange: (value: string) => void;
   note: string | null;
   error: string | null;
 }
@@ -23,29 +24,29 @@ export function UrlInput({ value, onChange, note, error }: UrlInputProps): React
     try {
       const text = await navigator.clipboard.readText();
       if (text) onChange(text.trim());
-      ref.current?.focus();
     } catch {
       // אין הרשאת גישה ללוח — המשתמש תמיד יכול להדביק ידנית
-      ref.current?.focus();
     }
+    ref.current?.focus();
   }, [onChange]);
 
   const canPaste = typeof navigator !== 'undefined' && !!navigator.clipboard?.readText;
 
   return (
-    <div className="space-y-2">
+    <div>
       <label htmlFor="qr-value" className="sr-only">
         הקישור או הטקסט לקידוד
       </label>
 
       <div
         className={cn(
-          'group relative flex items-center gap-2 rounded-2xl border bg-surface ps-3 pe-2 shadow-[var(--shadow-md)]',
-          'transition-[border-color,box-shadow] duration-200',
-          error ? 'border-danger' : 'border-border focus-within:border-primary',
+          'flex h-14 items-center gap-2.5 rounded-full bg-surface ps-4 pe-2',
+          'border transition-colors duration-200',
+          error ? 'border-danger' : 'border-border focus-within:border-fg',
         )}
       >
-        <Link2 size={19} className="shrink-0 text-fg-subtle" aria-hidden />
+        <Link2 size={18} className="shrink-0 text-fg-subtle" aria-hidden />
+
         <input
           ref={ref}
           id="qr-value"
@@ -58,52 +59,68 @@ export function UrlInput({ value, onChange, note, error }: UrlInputProps): React
           spellCheck={false}
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="הדביקו קישור, למשל  example.co.il"
+          placeholder="הדביקו קישור"
           aria-invalid={!!error}
           aria-describedby={note || error ? 'qr-value-note' : undefined}
-          className="h-14 min-w-0 flex-1 bg-transparent text-right text-base font-medium outline-none placeholder:font-normal placeholder:text-fg-subtle sm:h-16 sm:text-lg"
+          className="h-full min-w-0 flex-1 bg-transparent text-right text-[0.9375rem] font-medium outline-none placeholder:font-normal placeholder:text-fg-subtle"
         />
 
-        {value ? (
-          <button
-            type="button"
-            onClick={() => {
-              onChange('');
-              ref.current?.focus();
-            }}
-            aria-label="ניקוי השדה"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-fg-subtle transition-colors hover:bg-surface-2 hover:text-fg"
-          >
-            <X size={18} aria-hidden />
-          </button>
-        ) : (
-          canPaste && (
-            <Button
+        <AnimatePresence mode="wait" initial={false}>
+          {value ? (
+            <motion.button
+              key="clear"
               type="button"
-              size="sm"
-              variant="ghost"
-              onClick={paste}
-              icon={<ClipboardPaste size={16} />}
-              className="shrink-0"
+              initial={{ opacity: 0, scale: 0.7 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.7 }}
+              transition={springSnappy}
+              onClick={() => {
+                onChange('');
+                ref.current?.focus();
+              }}
+              aria-label="ניקוי השדה"
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-fg-subtle transition-colors hover:bg-surface-2 hover:text-fg"
             >
-              <span className="hidden sm:inline">הדבקה</span>
-            </Button>
-          )
-        )}
+              <X size={17} aria-hidden />
+            </motion.button>
+          ) : (
+            canPaste && (
+              <motion.button
+                key="paste"
+                type="button"
+                initial={{ opacity: 0, scale: 0.7 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.7 }}
+                whileTap={{ scale: 0.94 }}
+                transition={springSnappy}
+                onClick={paste}
+                className="flex h-10 shrink-0 items-center gap-1.5 rounded-full bg-surface-2 px-3.5 text-[0.8125rem] font-semibold text-fg-muted transition-colors hover:text-fg"
+              >
+                <ClipboardPaste size={15} aria-hidden />
+                הדבקה
+              </motion.button>
+            )
+          )}
+        </AnimatePresence>
       </div>
 
-      {(note || error) && (
-        <p
-          id="qr-value-note"
-          className={cn(
-            'flex items-start gap-1.5 px-1 text-xs leading-relaxed',
-            error ? 'text-danger' : 'text-fg-muted',
-          )}
-        >
-          <Info size={13} className="mt-0.5 shrink-0" aria-hidden />
-          <span>{error ?? note}</span>
-        </p>
-      )}
+      <AnimatePresence>
+        {(note || error) && (
+          <motion.p
+            id="qr-value-note"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={fade}
+            className={cn(
+              'overflow-hidden px-4 text-xs leading-relaxed',
+              error ? 'text-danger' : 'text-fg-muted',
+            )}
+          >
+            <span className="block pt-2">{error ?? note}</span>
+          </motion.p>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

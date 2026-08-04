@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { CheckCircle2, Info, TriangleAlert, X } from 'lucide-react';
+import { CheckCircle2, Info, TriangleAlert } from 'lucide-react';
 import {
   createContext,
   useCallback,
@@ -9,6 +9,8 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { cn } from '@/lib/cn';
+import { springSoft } from '@/lib/motion';
 
 type ToastTone = 'success' | 'error' | 'info';
 
@@ -26,28 +28,21 @@ interface ToastApi {
 
 const ToastContext = createContext<ToastApi | null>(null);
 
-const TONE_STYLE: Record<ToastTone, { icon: typeof Info; className: string }> = {
+const TONES: Record<ToastTone, { icon: typeof Info; className: string }> = {
   success: { icon: CheckCircle2, className: 'text-success' },
   error: { icon: TriangleAlert, className: 'text-danger' },
-  info: { icon: Info, className: 'text-primary' },
+  info: { icon: Info, className: 'text-accent' },
 };
 
 export function ToastProvider({ children }: { children: ReactNode }): ReactNode {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const seq = useRef(0);
 
-  const dismiss = useCallback((id: number) => {
-    setToasts((list) => list.filter((t) => t.id !== id));
+  const push = useCallback((message: string, tone: ToastTone) => {
+    const id = ++seq.current;
+    setToasts((list) => [...list.slice(-1), { id, message, tone }]);
+    setTimeout(() => setToasts((list) => list.filter((t) => t.id !== id)), tone === 'error' ? 5200 : 3200);
   }, []);
-
-  const push = useCallback(
-    (message: string, tone: ToastTone) => {
-      const id = ++seq.current;
-      setToasts((list) => [...list.slice(-2), { id, message, tone }]);
-      setTimeout(() => dismiss(id), tone === 'error' ? 6000 : 3600);
-    },
-    [dismiss],
-  );
 
   const api = useMemo<ToastApi>(
     () => ({
@@ -61,34 +56,31 @@ export function ToastProvider({ children }: { children: ReactNode }): ReactNode 
   return (
     <ToastContext.Provider value={api}>
       {children}
+
+      {/*
+        מלמעלה ולא מלמטה: תחתית המסך שמורה לרציף הייצוא, והתראה שמכסה את
+        כפתור ההורדה בדיוק ברגע שהוא נלחץ היא בדיוק ההתראה הלא נכונה.
+      */}
       <div
-        className="pointer-events-none fixed inset-x-0 bottom-4 z-[100] flex flex-col items-center gap-2 px-4 sm:bottom-6"
+        className="pointer-events-none fixed inset-x-0 top-3 z-[90] flex flex-col items-center gap-2 px-4"
         role="status"
         aria-live="polite"
       >
         <AnimatePresence initial={false}>
           {toasts.map((toast) => {
-            const { icon: Icon, className } = TONE_STYLE[toast.tone];
+            const { icon: Icon, className } = TONES[toast.tone];
             return (
               <motion.div
                 key={toast.id}
                 layout
-                initial={{ opacity: 0, y: 16, scale: 0.96 }}
+                initial={{ opacity: 0, y: -16, scale: 0.96 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
-                className="pointer-events-auto flex max-w-md items-center gap-2.5 rounded-2xl border border-border bg-surface px-4 py-3 text-sm font-medium shadow-[var(--shadow-lg)]"
+                exit={{ opacity: 0, y: -10, scale: 0.96 }}
+                transition={springSoft}
+                className="pointer-events-auto flex max-w-[26rem] items-center gap-2.5 rounded-full border border-border bg-surface py-2.5 pe-4 ps-3.5 text-[0.875rem] font-medium shadow-[var(--shadow-pop)]"
               >
-                <Icon size={18} className={className} aria-hidden />
-                <span className="flex-1">{toast.message}</span>
-                <button
-                  type="button"
-                  onClick={() => dismiss(toast.id)}
-                  className="-me-1 rounded-lg p-1 text-fg-subtle transition-colors hover:bg-surface-2 hover:text-fg"
-                  aria-label="סגירת ההודעה"
-                >
-                  <X size={15} aria-hidden />
-                </button>
+                <Icon size={16} className={cn('shrink-0', className)} aria-hidden />
+                <span>{toast.message}</span>
               </motion.div>
             );
           })}

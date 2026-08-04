@@ -1,50 +1,48 @@
-import { Palette, Ruler, SlidersHorizontal } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Palette, Ruler, Sparkles, Type } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { CustomizePanel } from './components/CustomizePanel';
-import { DesignGallery } from './components/DesignGallery';
-import { ExportBar } from './components/ExportBar';
+import { ExportDock } from './components/ExportDock';
 import { Header } from './components/Header';
-import { HistoryStrip } from './components/HistoryStrip';
-import { MobileActionBar } from './components/MobileActionBar';
+import { HistoryRail } from './components/HistoryRail';
+import { InstallSheet } from './components/InstallSheet';
 import { QrPreview } from './components/QrPreview';
-import { SizePicker } from './components/SizePicker';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { UrlInput } from './components/UrlInput';
-import { Segmented } from './components/ui/Field';
+import { BrandSheet } from './components/sheets/BrandSheet';
+import { DesignSheet } from './components/sheets/DesignSheet';
+import { SizeSheet } from './components/sheets/SizeSheet';
+import { StyleSheet } from './components/sheets/StyleSheet';
+import { RowGroup, SettingRow } from './components/ui/controls';
+import { paintToCss } from './components/ui/ColorField';
 import { useExportActions } from './hooks/useExportActions';
+import { useInstallPrompt } from './hooks/useInstallPrompt';
 import { useQrStudio } from './hooks/useQrStudio';
 import { useScanCheck } from './hooks/useScanCheck';
 import { useTheme } from './hooks/useTheme';
 import { useToast } from './hooks/useToast';
 import { checkScanContrast } from './lib/contrast';
 import { track } from './lib/firebase';
+import { listItem, listParent } from './lib/motion';
+import { labelFor, DOT_SCALES, MODULE_SHAPES } from './lib/qr/options';
 import { paintToColor } from './lib/qr/render/common';
-import {
-  clearHistory,
-  loadHistory,
-  pushHistory,
-  removeHistory,
-  type HistoryEntry,
-} from './lib/storage';
+import { loadHistory, pushHistory, removeHistory, type HistoryEntry } from './lib/storage';
 
-type Tab = 'designs' | 'customize' | 'sizes';
-
-const TABS: Array<{ value: Tab; label: string; icon: ReactNode }> = [
-  { value: 'designs', label: 'עיצובים', icon: <Palette size={15} aria-hidden /> },
-  { value: 'customize', label: 'התאמה', icon: <SlidersHorizontal size={15} aria-hidden /> },
-  { value: 'sizes', label: 'גודל', icon: <Ruler size={15} aria-hidden /> },
-];
+type SheetName = 'design' | 'style' | 'brand' | 'size' | 'install' | null;
 
 export default function App(): ReactNode {
   const studio = useQrStudio();
-  const { isDark, toggle, mode } = useTheme();
+  const { isDark, toggle } = useTheme();
   const toast = useToast();
-  const [tab, setTab] = useState<Tab>('designs');
+  const install = useInstallPrompt();
+
+  const [sheet, setSheet] = useState<SheetName>(null);
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory());
   const lastTracked = useRef('');
+  const installOffered = useRef(false);
 
   const { state, patch, design, size, geometry, error, encodedValue } = studio;
   const scanCheck = useScanCheck(geometry, encodedValue);
+
   const contrast = useMemo(
     () =>
       checkScanContrast(
@@ -53,23 +51,6 @@ export default function App(): ReactNode {
       ),
     [state.bodyOverride, state.backgroundOverride, state.transparent, design],
   );
-
-  // מדידה חד-פעמית לכל ערך שנוצר בהצלחה
-  useEffect(() => {
-    if (!geometry || !encodedValue || lastTracked.current === encodedValue) return;
-    lastTracked.current = encodedValue;
-    void track('qr_generated', { design: design.id, modules: geometry.moduleCount });
-  }, [geometry, encodedValue, design.id]);
-
-  // קבלת קישור משותף מהמערכת (Web Share Target) או מפרמטר בכתובת
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const shared = params.get('url') ?? params.get('text') ?? params.get('v');
-    if (shared) {
-      patch({ input: shared });
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, [patch]);
 
   const rememberCurrent = useCallback(() => {
     if (!encodedValue) return;
@@ -91,123 +72,189 @@ export default function App(): ReactNode {
     onExported: rememberCurrent,
   });
 
+  // מדידה חד-פעמית לכל ערך שנוצר בהצלחה
+  useEffect(() => {
+    if (!geometry || !encodedValue || lastTracked.current === encodedValue) return;
+    lastTracked.current = encodedValue;
+    void track('qr_generated', { design: design.id, modules: geometry.moduleCount });
+  }, [geometry, encodedValue, design.id]);
+
+  // קבלת קישור משותף מהמערכת (Web Share Target) או מפרמטר בכתובת
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const shared = params.get('url') ?? params.get('text') ?? params.get('v');
+    if (shared) {
+      patch({ input: shared });
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [patch]);
+
+  // הצעת ההתקנה מגיעה רק אחרי שכבר נוצר קוד — לפני זה אין למשתמש סיבה להסכים
+  useEffect(() => {
+    if (installOffered.current || !geometry) return;
+    if (!install.available || install.dismissed || install.installed) return;
+    installOffered.current = true;
+    const timer = setTimeout(() => setSheet((current) => current ?? 'install'), 2600);
+    return () => clearTimeout(timer);
+  }, [geometry, install.available, install.dismissed, install.installed]);
+
   const restore = useCallback(
     (entry: HistoryEntry) => {
       patch({ input: entry.value, designId: entry.designId });
       void track('history_restored');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
     },
     [patch],
   );
 
+  const closeSheet = useCallback(() => setSheet(null), []);
+
+  const shapeLabel =
+    MODULE_SHAPES.find((s) => s.value === (state.moduleShape ?? design.moduleShape))?.label ?? '';
+  const brandParts = [
+    state.logo ? 'לוגו' : null,
+    state.frameEnabled && state.frameText.trim() ? state.frameText.trim() : null,
+  ].filter(Boolean);
+
   return (
-    <div className="aurora-bg relative min-h-dvh">
-      <Header isDark={isDark} onToggleTheme={toggle} mode={mode} />
+    <div className="min-h-dvh">
+      <Header isDark={isDark} onToggleTheme={toggle} />
 
-      <main className="relative z-10 mx-auto max-w-6xl px-4 pb-28 pt-6 sm:px-6 sm:pt-10 lg:pb-16">
-        <section className="mb-6 space-y-4 sm:mb-8">
-          <div className="space-y-1.5 text-center sm:text-start">
-            <h1 className="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">
-              מחוללים קוד QR מעוצב
-            </h1>
-            <p className="text-sm text-fg-muted sm:text-base">
-              הדביקו קישור, בחרו עיצוב וגודל — והורידו כתמונה או PDF. הכול קורה בדפדפן, בלי שהקישור
-              שלכם נשלח לשום שרת.
+      <main className="mx-auto max-w-[30rem] px-4 pb-2">
+        <motion.div variants={listParent} initial="hidden" animate="show" className="space-y-4">
+          <motion.div variants={listItem} className="pt-1">
+            <h1 className="text-[1.375rem] font-extrabold leading-tight">קוד QR מעוצב</h1>
+            <p className="mt-0.5 text-[0.8125rem] text-fg-muted">
+              הדביקו קישור, בחרו עיצוב, והורידו
             </p>
-          </div>
+          </motion.div>
 
-          <UrlInput
-            value={state.input}
-            onChange={(input) => patch({ input })}
-            note={studio.inputNote}
-            error={error}
-          />
+          <motion.div variants={listItem}>
+            <UrlInput
+              value={state.input}
+              onChange={(input) => patch({ input })}
+              note={studio.inputNote}
+              error={error}
+            />
+          </motion.div>
 
-          <HistoryStrip
-            entries={history}
-            onRestore={restore}
-            onRemove={(id) => setHistory(removeHistory(id))}
-            onClear={() => {
-              clearHistory();
-              setHistory([]);
-            }}
-          />
-        </section>
-
-        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start lg:gap-8">
-          {/* ── לוח הבקרה ─────────────────────────────────── */}
-          <div className="order-2 space-y-4 lg:order-1">
-            <Segmented aria-label="מה מתאימים" options={TABS} value={tab} onChange={setTab} />
-
-            <div key={tab} className="animate-in-up card p-4 sm:p-5">
-              {tab === 'designs' && (
-                <DesignGallery
-                  selectedId={state.designId}
-                  buildPreview={studio.buildPreview}
-                  onSelect={(d) => {
-                    patch({ designId: d.id, ecLevel: state.logo ? 'H' : d.ecLevel });
-                    void track('design_selected', { design: d.id });
-                  }}
-                />
-              )}
-
-              {tab === 'customize' && (
-                <CustomizePanel
-                  state={state}
-                  design={design}
-                  patch={patch}
-                  onResetCustomizations={studio.resetCustomizations}
-                  onLogoError={toast.error}
-                />
-              )}
-
-              {tab === 'sizes' && (
-                <SizePicker
-                  value={state.sizeId}
-                  onChange={(s) => {
-                    patch({ sizeId: s.id });
-                    void track('size_selected', { size: s.id });
-                  }}
-                />
-              )}
-            </div>
-          </div>
-
-          {/* ── תצוגה מקדימה + ייצוא ──────────────────────── */}
-          <aside className="order-1 space-y-4 lg:sticky lg:top-20 lg:order-2">
-            <div id="qr-preview-anchor" aria-hidden />
+          <motion.div variants={listItem}>
             <QrPreview
               geo={geometry}
               error={error}
               isEmpty={studio.isEmpty}
               transparent={state.transparent}
-              designName={design.name}
-              size={size}
-              value={encodedValue}
               scanCheck={scanCheck}
               contrast={contrast}
-              animationKey={`${design.id}-${state.moduleShape}-${state.transparent}`}
+              animationKey={`${design.id}-${state.moduleShape}-${state.transparent}-${state.frameEnabled}`}
             />
+          </motion.div>
 
-            <div className="card space-y-3 p-4">
-              <ExportBar actions={exportActions} transparent={state.transparent} />
-            </div>
-          </aside>
-        </div>
+          <motion.div variants={listItem}>
+            <RowGroup>
+              <SettingRow
+                icon={<Sparkles size={18} aria-hidden />}
+                label="עיצוב"
+                value={design.name}
+                onClick={() => setSheet('design')}
+              />
+              <SettingRow
+                icon={<Palette size={18} aria-hidden />}
+                label="צבעים וצורות"
+                value={`${shapeLabel} · ${labelFor(DOT_SCALES, state.dotScale ?? design.dotScale)}`}
+                onClick={() => setSheet('style')}
+                trailing={
+                  <span
+                    className="h-6 w-6 shrink-0 rounded-full border border-black/10 dark:border-white/15"
+                    style={{ background: paintToCss(state.bodyOverride ?? design.body) }}
+                    aria-hidden
+                  />
+                }
+              />
+              <SettingRow
+                icon={<Type size={18} aria-hidden />}
+                label="לוגו וכיתוב"
+                value={brandParts.length ? brandParts.join(' · ') : 'ללא'}
+                onClick={() => setSheet('brand')}
+              />
+              <SettingRow
+                icon={<Ruler size={18} aria-hidden />}
+                label="גודל"
+                value={`${size.label} · ${size.hint}`}
+                onClick={() => setSheet('size')}
+              />
+            </RowGroup>
+          </motion.div>
 
-        <footer className="mt-12 border-t border-border pt-6 text-center text-xs leading-relaxed text-fg-subtle">
-          <p>
-            הקודים נוצרים במלואם במכשיר שלכם. אין העלאה של קישורים, לוגואים או תמונות לשרת.
-          </p>
-          <p className="mt-1">QR Studio · נבנה עם ❤️ בעברית</p>
+          {history.length > 0 && (
+            <motion.div variants={listItem}>
+              <HistoryRail
+                entries={history}
+                onRestore={restore}
+                onRemove={(id) => setHistory(removeHistory(id))}
+              />
+            </motion.div>
+          )}
+        </motion.div>
+
+        <ExportDock actions={exportActions} transparent={state.transparent} />
+
+        <footer className="pb-6 pt-4 text-center text-xs leading-relaxed text-fg-subtle">
+          הקודים נוצרים במלואם במכשיר שלכם — קישורים, לוגואים ותמונות לא נשלחים לשום שרת.
         </footer>
       </main>
 
-      <MobileActionBar
-        geo={geometry}
-        designName={design.name}
-        busy={exportActions.busy === 'download'}
-        onDownload={() => void exportActions.runDownload()}
+      <DesignSheet
+        open={sheet === 'design'}
+        onClose={closeSheet}
+        selectedId={state.designId}
+        buildPreview={studio.buildPreview}
+        onSelect={(d) => {
+          patch({ designId: d.id, ecLevel: state.logo ? 'H' : d.ecLevel });
+          void track('design_selected', { design: d.id });
+        }}
+      />
+
+      <StyleSheet
+        open={sheet === 'style'}
+        onClose={closeSheet}
+        state={state}
+        design={design}
+        patch={patch}
+        onReset={studio.resetCustomizations}
+      />
+
+      <BrandSheet
+        open={sheet === 'brand'}
+        onClose={closeSheet}
+        state={state}
+        design={design}
+        patch={patch}
+        onError={toast.error}
+      />
+
+      <SizeSheet
+        open={sheet === 'size'}
+        onClose={closeSheet}
+        value={state.sizeId}
+        onChange={(s) => {
+          patch({ sizeId: s.id });
+          void track('size_selected', { size: s.id });
+        }}
+      />
+
+      <InstallSheet
+        open={sheet === 'install'}
+        manual={install.manual}
+        onClose={() => {
+          install.dismiss();
+          closeSheet();
+        }}
+        onInstall={() => {
+          void install.install().then((accepted) => {
+            if (accepted) void track('pwa_installed');
+            closeSheet();
+          });
+        }}
       />
 
       <UpdatePrompt />

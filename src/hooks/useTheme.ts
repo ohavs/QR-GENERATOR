@@ -14,7 +14,7 @@ function apply(mode: ThemeMode): void {
   document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
   document
     .querySelector('meta[name="theme-color"]')
-    ?.setAttribute('content', dark ? '#0b1120' : '#f7f7fb');
+    ?.setAttribute('content', dark ? '#09090b' : '#f4f4f5');
 }
 
 export function useTheme(): { mode: ThemeMode; isDark: boolean; setMode: (m: ThemeMode) => void; toggle: () => void } {

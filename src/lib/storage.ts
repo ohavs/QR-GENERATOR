@@ -1,3 +1,4 @@
+import type { ContentKind, FieldValues } from './qr/content';
 import type { EcLevel, ModuleShape, Paint } from './qr/types';
 
 const HISTORY_KEY = 'qr-studio:history:v1';
@@ -6,7 +7,11 @@ const MAX_HISTORY = 24;
 
 export interface HistoryEntry {
   id: string;
+  /** הערך המקודד — משמש להשוואה ולתצוגה */
   value: string;
+  /** סוג התוכן וערכי הטופס, כדי ששחזור יחזיר טופס מלא ולא רק מחרוזת */
+  kind: ContentKind;
+  values: FieldValues;
   designId: string;
   createdAt: number;
   /** צבע ייצוגי לתצוגה מקדימה ברשימה */
@@ -48,7 +53,13 @@ function write(key: string, value: unknown): void {
 }
 
 export function loadHistory(): HistoryEntry[] {
-  return read<HistoryEntry[]>(HISTORY_KEY) ?? [];
+  const entries = read<HistoryEntry[]>(HISTORY_KEY) ?? [];
+  // רשומות מגרסה קודמת שמרו מחרוזת בלבד — משוחזרות ככתובת
+  return entries.map((e) => ({
+    ...e,
+    kind: e.kind ?? 'link',
+    values: e.values ?? { url: e.value },
+  }));
 }
 
 export function pushHistory(entry: Omit<HistoryEntry, 'id' | 'createdAt'>): HistoryEntry[] {

@@ -7,7 +7,7 @@ import { HistoryRail } from './components/HistoryRail';
 import { InstallSheet } from './components/InstallSheet';
 import { QrPreview } from './components/QrPreview';
 import { UpdatePrompt } from './components/UpdatePrompt';
-import { UrlInput } from './components/UrlInput';
+import { ContentInput } from './components/ContentInput';
 import { BrandSheet } from './components/sheets/BrandSheet';
 import { DesignSheet } from './components/sheets/DesignSheet';
 import { SizeSheet } from './components/sheets/SizeSheet';
@@ -23,6 +23,7 @@ import { useToast } from './hooks/useToast';
 import { checkScanContrast } from './lib/contrast';
 import { track } from './lib/firebase';
 import { listItem, listParent } from './lib/motion';
+import { CONTENT_TYPES } from './lib/qr/content';
 import { labelFor, DOT_SCALES, MODULE_SHAPES } from './lib/qr/options';
 import { paintToColor } from './lib/qr/render/common';
 import { loadHistory, pushHistory, removeHistory, type HistoryEntry } from './lib/storage';
@@ -57,11 +58,13 @@ export default function App(): ReactNode {
     setHistory(
       pushHistory({
         value: encodedValue,
+        kind: state.contentKind,
+        values: state.contentValues[state.contentKind] ?? {},
         designId: design.id,
         swatch: paintToColor(state.bodyOverride ?? design.body),
       }),
     );
-  }, [encodedValue, design, state.bodyOverride]);
+  }, [encodedValue, design, state.bodyOverride, state.contentKind, state.contentValues]);
 
   const exportActions = useExportActions({
     geo: geometry,
@@ -84,10 +87,12 @@ export default function App(): ReactNode {
     const params = new URLSearchParams(window.location.search);
     const shared = params.get('url') ?? params.get('text') ?? params.get('v');
     if (shared) {
-      patch({ input: shared });
+      studio.loadContent('link', { url: shared });
       window.history.replaceState({}, '', window.location.pathname);
     }
-  }, [patch]);
+    // כוונה: פעם אחת בעלייה בלבד
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // הצעת ההתקנה מגיעה רק אחרי שכבר נוצר קוד — לפני זה אין למשתמש סיבה להסכים
   useEffect(() => {
@@ -100,10 +105,11 @@ export default function App(): ReactNode {
 
   const restore = useCallback(
     (entry: HistoryEntry) => {
-      patch({ input: entry.value, designId: entry.designId });
+      studio.loadContent(entry.kind, entry.values);
+      patch({ designId: entry.designId });
       void track('history_restored');
     },
-    [patch],
+    [patch, studio],
   );
 
   const closeSheet = useCallback(() => setSheet(null), []);
@@ -129,9 +135,11 @@ export default function App(): ReactNode {
           </motion.div>
 
           <motion.div variants={listItem}>
-            <UrlInput
-              value={state.input}
-              onChange={(input) => patch({ input })}
+            <ContentInput
+              kind={state.contentKind}
+              values={state.contentValues[state.contentKind] ?? {}}
+              onKindChange={(kind) => patch({ contentKind: kind })}
+              onFieldChange={studio.setField}
               note={studio.inputNote}
               error={error}
             />
@@ -146,6 +154,7 @@ export default function App(): ReactNode {
               scanCheck={scanCheck}
               contrast={contrast}
               animationKey={`${design.id}-${state.moduleShape}-${state.transparent}-${state.frameEnabled}`}
+              compact={CONTENT_TYPES[state.contentKind].fields.length > 2}
             />
           </motion.div>
 
@@ -230,6 +239,7 @@ export default function App(): ReactNode {
         design={design}
         patch={patch}
         onError={toast.error}
+        onInfo={toast.info}
       />
 
       <SizeSheet

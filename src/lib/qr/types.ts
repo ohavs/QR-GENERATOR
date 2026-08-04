@@ -51,8 +51,12 @@ export interface FrameSpec {
 }
 
 export interface LogoSpec {
-  /** data: URL של התמונה */
+  /** data: URL של התמונה שמצוירת בפועל */
   src: string;
+  /** data: URL של הקובץ המקורי שהועלה — כדי שאפשר יהיה לבטל הסרת רקע */
+  originalSrc: string;
+  /** 'off' = הרקע המקורי נשמר */
+  bgRemoval: 'off' | 'gentle' | 'normal' | 'strong';
   /** גודל הלוגו כאחוז מרוחב הקוד (0.12–0.3) */
   scale: number;
   /** ריפוד לבן/רקע מסביב ללוגו */
@@ -158,5 +162,14 @@ export interface QrGeometry {
     } | null;
   } | null;
   /** אזור הלוגו ביחידות מודול */
-  logo: { x: number; y: number; size: number; radius: number; padding: number; src: string } | null;
+  logo: {
+    x: number;
+    y: number;
+    size: number;
+    radius: number;
+    padding: number;
+    src: string;
+    /** צבע לוח הריפוד מאחורי הלוגו — נגזר מרקע הקוד, לא לבן קבוע */
+    plateColor: string;
+  } | null;
 }

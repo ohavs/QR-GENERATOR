@@ -72,6 +72,14 @@ export const QUIET_ZONES: Array<Choice<number>> = [
   { value: 6, label: 'רחב' },
 ];
 
+/** עוצמת הסרת הרקע מהלוגו. */
+export const BG_STRENGTHS: Array<Choice<'off' | 'gentle' | 'normal' | 'strong'>> = [
+  { value: 'off', label: 'כבוי' },
+  { value: 'gentle', label: 'עדין' },
+  { value: 'normal', label: 'רגיל' },
+  { value: 'strong', label: 'חזק' },
+];
+
 export const LOGO_SCALES: Array<Choice<number>> = [
   { value: 0.15, label: 'קטן' },
   { value: 0.2, label: 'בינוני' },

@@ -140,7 +140,7 @@ export async function renderToCanvas(
   drawPath(ctx, geo.eyeBalls, qrPx, placement, geo.offset);
 
   if (geo.logo) {
-    const { x, y, size, radius, padding, src } = geo.logo;
+    const { x, y, size, radius, padding, src, plateColor } = geo.logo;
     const sx = x * placement.scale + placement.ox;
     const sy = y * placement.scale + placement.oy;
     const ss = size * placement.scale;
@@ -148,7 +148,7 @@ export async function renderToCanvas(
     const sp = padding * placement.scale;
 
     if (sp > 0) {
-      ctx.fillStyle = '#FFFFFF';
+      ctx.fillStyle = plateColor;
       const bg = new Path2D();
       bg.roundRect(sx - sp, sy - sp, ss + sp * 2, ss + sp * 2, sr + sp);
       ctx.fill(bg);

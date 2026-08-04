@@ -1,12 +1,13 @@
 import { motion } from 'framer-motion';
-import { ImageUp, Trash2 } from 'lucide-react';
-import { useCallback, useRef, type ReactNode } from 'react';
+import { ImageUp, Loader2, Trash2, Wand2 } from 'lucide-react';
+import { useCallback, useRef, useState, type ReactNode } from 'react';
 import { Sheet } from '../ui/Sheet';
 import { Divider, Pills, Section, Toggle } from '../ui/controls';
 import type { StudioState } from '@/hooks/useQrStudio';
+import { removeBackground, type BackgroundStrength } from '@/lib/logo/removeBackground';
 import { springSnappy } from '@/lib/motion';
-import { LOGO_RADII, LOGO_SCALES, snapTo } from '@/lib/qr/options';
-import type { QrDesign } from '@/lib/qr/types';
+import { BG_STRENGTHS, LOGO_RADII, LOGO_SCALES, snapTo } from '@/lib/qr/options';
+import type { LogoSpec, QrDesign } from '@/lib/qr/types';
 
 const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 
@@ -17,6 +18,7 @@ interface BrandSheetProps {
   design: QrDesign;
   patch: (partial: Partial<StudioState>) => void;
   onError: (message: string) => void;
+  onInfo: (message: string) => void;
 }
 
 /** לוגו וכיתוב — מה שהופך קוד גנרי לקוד של מותג מסוים. */
@@ -27,8 +29,40 @@ export function BrandSheet({
   design,
   patch,
   onError,
+  onInfo,
 }: BrandSheetProps): ReactNode {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [working, setWorking] = useState(false);
+
+  /**
+   * מחיל (או מבטל) הסרת רקע על הלוגו.
+   *
+   * המקור נשמר תמיד ב-`originalSrc`, וכל שינוי עוצמה מעבד אותו מחדש — כך
+   * שהמעבר בין העוצמות אינו מצטבר ואינו הרסני.
+   */
+  const applyBgRemoval = useCallback(
+    async (logo: LogoSpec, mode: LogoSpec['bgRemoval']) => {
+      if (mode === 'off') {
+        patch({ logo: { ...logo, src: logo.originalSrc, bgRemoval: 'off' } });
+        return;
+      }
+      setWorking(true);
+      try {
+        const result = await removeBackground(logo.originalSrc, mode as BackgroundStrength);
+        if (!result.changed) {
+          onInfo('לא נמצא רקע אחיד להסרה בתמונה הזו');
+          patch({ logo: { ...logo, src: logo.originalSrc, bgRemoval: 'off' } });
+          return;
+        }
+        patch({ logo: { ...logo, src: result.src, bgRemoval: mode } });
+      } catch {
+        onError('הסרת הרקע נכשלה');
+      } finally {
+        setWorking(false);
+      }
+    },
+    [onError, onInfo, patch],
+  );
 
   const pickLogo = useCallback(
     (file: File | undefined) => {
@@ -42,10 +76,13 @@ export function BrandSheet({
         return;
       }
       const reader = new FileReader();
-      reader.onload = () =>
+      reader.onload = () => {
+        const src = String(reader.result);
         patch({
           logo: {
-            src: String(reader.result),
+            src,
+            originalSrc: src,
+            bgRemoval: 'off',
             scale: state.logo?.scale ?? 0.2,
             padding: state.logo?.padding ?? 0.12,
             radius: state.logo?.radius ?? 0.22,
@@ -54,6 +91,7 @@ export function BrandSheet({
           // לוגו מכסה מודולים — רמת תיקון מרבית שומרת על יכולת הסריקה
           ecLevel: 'H',
         });
+      };
       reader.onerror = () => onError('קריאת הקובץ נכשלה');
       reader.readAsDataURL(file);
     },
@@ -93,6 +131,28 @@ export function BrandSheet({
               >
                 <Trash2 size={16} aria-hidden />
               </motion.button>
+            </div>
+
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-3">
+                <p className="flex items-center gap-1.5 text-[0.8125rem] font-semibold">
+                  <Wand2 size={14} className="text-accent" aria-hidden />
+                  הסרת רקע אוטומטית
+                </p>
+                {working && <Loader2 size={14} className="animate-spin text-fg-muted" aria-hidden />}
+              </div>
+              <Pills
+                label="הסרת רקע אוטומטית"
+                layout="grid"
+                columns={4}
+                options={BG_STRENGTHS}
+                value={state.logo.bgRemoval}
+                onChange={(v) => void applyBgRemoval(state.logo!, v)}
+              />
+              <p className="text-xs leading-relaxed text-fg-muted">
+                מזהה את הרקע האחיד סביב הלוגו ומסיר אותו. עוצמה חזקה יותר מסירה גם גוונים
+                קרובים — שימושי בסריקות, אבל עלולה לנגוס בלוגו עצמו.
+              </p>
             </div>
 
             <div className="space-y-2.5">

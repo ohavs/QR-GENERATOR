@@ -1,4 +1,5 @@
 import { encode, FINDER_ORIGINS, FINDER_SIZE } from './encode';
+import { paintToColor } from './render/common';
 import {
   circle,
   concaveFillet,
@@ -312,6 +313,8 @@ export function buildGeometry(opts: QrOptions): QrGeometry {
   const boardHeight = boardSize + fh;
 
   /* אזור הלוגו — נחשב מראש כדי לנקות מודולים שמתחתיו */
+  const bgPaint = opts.transparentBackground ? null : (opts.backgroundOverride ?? design.background);
+
   let logoRect: { x0: number; y0: number; x1: number; y1: number } | null = null;
   let logo: QrGeometry['logo'] = null;
   if (opts.logo) {
@@ -319,7 +322,16 @@ export function buildGeometry(opts: QrOptions): QrGeometry {
     const pad = size * opts.logo.padding;
     const x = offset + (count - size) / 2;
     const y = offset + (count - size) / 2;
-    logo = { x, y, size, radius: size * opts.logo.radius, padding: pad, src: opts.logo.src };
+    logo = {
+      x,
+      y,
+      size,
+      radius: size * opts.logo.radius,
+      padding: pad,
+      src: opts.logo.src,
+      // לוח לבן על עיצוב כהה נראה כמו טעות; הריפוד מתמזג עם רקע הקוד
+      plateColor: bgPaint ? paintToColor(bgPaint) : '#FFFFFF',
+    };
     if (opts.logo.excavate) {
       const half = size / 2 + pad;
       const c = count / 2;
@@ -357,15 +369,13 @@ export function buildGeometry(opts: QrOptions): QrGeometry {
     ballsD += eyeBallGlyph(eyeBall, ox, oy);
   }
 
-  const bg = opts.transparentBackground ? null : (opts.backgroundOverride ?? design.background);
-
   return {
     moduleCount: count,
     boardSize,
     boardHeight,
     offset,
-    background: bg
-      ? { d: roundedRect(0, 0, boardSize, boardHeight, [radius, radius, radius, radius]), paint: bg }
+    background: bgPaint
+      ? { d: roundedRect(0, 0, boardSize, boardHeight, [radius, radius, radius, radius]), paint: bgPaint }
       : null,
     plate: design.plate
       ? {

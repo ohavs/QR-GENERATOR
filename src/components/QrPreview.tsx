@@ -17,6 +17,13 @@ interface QrPreviewProps {
   contrast: ScanContrast;
   /** משתנה בכל שינוי חזותי — מפעיל את מעבר התצוגה */
   animationKey: string;
+  /**
+   * מוקטן — לטפסים מרובי-שדות.
+   *
+   * בלי זה טופס של איש קשר דוחף את הקוד מתחת לקפל, והמשתמש מקליד בלי לראות
+   * מה נוצר. הקוד מתכווץ כדי ששניהם יישארו על אותו מסך.
+   */
+  compact?: boolean;
 }
 
 export function QrPreview({
@@ -27,12 +34,14 @@ export function QrPreview({
   scanCheck,
   contrast,
   animationKey,
+  compact = false,
 }: QrPreviewProps): ReactNode {
   return (
     <div className="space-y-3">
       <div
         className={cn(
-          'mx-auto grid aspect-square w-full max-w-[15.5rem] place-items-center rounded-[var(--radius-card)] p-3.5 sm:max-w-[17rem] sm:p-4',
+          'mx-auto grid aspect-square w-full place-items-center rounded-[var(--radius-card)] p-3.5 transition-[max-width] duration-300 sm:p-4',
+          compact ? 'max-w-[11.5rem]' : 'max-w-[15.5rem] sm:max-w-[17rem]',
           geo
             ? transparent
               ? 'checkerboard border border-border'

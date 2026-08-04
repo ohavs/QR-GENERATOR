@@ -28,7 +28,7 @@ const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
 page.on('pageerror', (e) => console.error('PAGEERROR:', e.message));
 
 await page.goto(ORIGIN, { waitUntil: 'domcontentloaded' });
-await page.fill('#qr-value', 'https://example.co.il/menu');
+await page.fill('#content-url', 'https://example.co.il/menu');
 await page.waitForTimeout(800);
 
 // כיתוב + לוגו, דרך גיליון "לוגו וכיתוב"

@@ -12,7 +12,9 @@
     "icons": "python3 scripts/generate-icons.py",
     "test:scan": "node scripts/scan-test.mjs",
     "test:export": "node scripts/export-test.mjs",
-    "deploy": "npm run build && firebase deploy --only hosting"
+    "deploy": "npm run build && firebase deploy --only hosting",
+    "test:logo": "node scripts/logo-bg-test.mjs",
+    "test:content": "node scripts/content-test.mjs"
   },
   "dependencies": {
     "firebase": "^12.17.0",

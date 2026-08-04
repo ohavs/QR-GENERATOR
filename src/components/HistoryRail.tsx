@@ -2,8 +2,9 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { springSnappy } from '@/lib/motion';
+import { CONTENT_TYPES } from '@/lib/qr/content';
 import type { HistoryEntry } from '@/lib/storage';
-import { shortenForDisplay } from '@/lib/url';
+import { shortenForDisplay } from '@/lib/text';
 
 interface HistoryRailProps {
   entries: HistoryEntry[];
@@ -45,8 +46,8 @@ export function HistoryRail({ entries, onRestore, onRemove }: HistoryRailProps):
                   style={{ background: entry.swatch }}
                   aria-hidden
                 />
-                <span className="truncate text-[0.8125rem] font-medium" dir="ltr">
-                  {shortenForDisplay(entry.value, 22)}
+                <span className="truncate text-[0.8125rem] font-medium" dir="auto">
+                  {CONTENT_TYPES[entry.kind].summary(entry.values) || shortenForDisplay(entry.value, 22)}
                 </span>
               </motion.button>
 

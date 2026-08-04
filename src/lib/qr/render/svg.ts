@@ -81,14 +81,14 @@ export function toSvg(geo: QrGeometry, options: SvgRenderOptions = {}): string {
   parts.push(pathEl(geo.eyeBalls, regions.qr, defs, shift));
 
   if (geo.logo) {
-    const { x, y, size, radius, padding, src } = geo.logo;
+    const { x, y, size, radius, padding, src, plateColor } = geo.logo;
     const clipId = `${idPrefix}-logoclip`;
     defs.defs.push(
       `<clipPath id="${clipId}"><rect x="${x}" y="${y}" width="${size}" height="${size}" rx="${radius}" ry="${radius}"/></clipPath>`,
     );
     if (padding > 0) {
       parts.push(
-        `<rect x="${x - padding}" y="${y - padding}" width="${size + padding * 2}" height="${size + padding * 2}" rx="${radius + padding}" ry="${radius + padding}" fill="#FFFFFF"/>`,
+        `<rect x="${x - padding}" y="${y - padding}" width="${size + padding * 2}" height="${size + padding * 2}" rx="${radius + padding}" ry="${radius + padding}" fill="${plateColor}"/>`,
       );
     }
     parts.push(

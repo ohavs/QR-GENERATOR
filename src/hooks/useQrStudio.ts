@@ -12,13 +12,21 @@ import type {
   QrGeometry,
   QrOptions,
 } from '@/lib/qr/types';
+import {
+  CONTENT_TYPES,
+  contentNote,
+  type ContentKind,
+  type FieldValues,
+} from '@/lib/qr/content';
 import { DEFAULT_SIZE, SIZE_BY_ID, type SizePreset } from '@/lib/sizes';
 import { loadSettings, saveSettings } from '@/lib/storage';
-import { checkInput } from '@/lib/url';
 import { useDebounced } from './useDebounced';
 
 export interface StudioState {
-  input: string;
+  /** סוג התוכן הפעיל */
+  contentKind: ContentKind;
+  /** ערכי הטופס לכל סוג, כדי שמעבר בין סוגים לא ימחק מה שכבר הוקלד */
+  contentValues: Record<ContentKind, FieldValues>;
   designId: string;
   sizeId: string;
   quietZone: number;
@@ -37,8 +45,13 @@ export interface StudioState {
   frameText: string;
 }
 
+const EMPTY_VALUES = Object.fromEntries(
+  (Object.keys(CONTENT_TYPES) as ContentKind[]).map((k) => [k, {}]),
+) as Record<ContentKind, FieldValues>;
+
 const INITIAL: StudioState = {
-  input: '',
+  contentKind: 'link',
+  contentValues: EMPTY_VALUES,
   designId: DEFAULT_DESIGN.id,
   sizeId: DEFAULT_SIZE.id,
   quietZone: 4,
@@ -79,6 +92,8 @@ function hydrate(): StudioState {
 export interface StudioApi {
   state: StudioState;
   patch: (partial: Partial<StudioState>) => void;
+  setField: (name: string, value: string) => void;
+  loadContent: (kind: ContentKind, values: FieldValues) => void;
   reset: () => void;
   /** מאפס רק את ההתאמות הידניות, ומחזיר את העיצוב לברירת המחדל שלו */
   resetCustomizations: () => void;
@@ -100,7 +115,12 @@ const MAX_LENGTH = 1200;
 
 export function useQrStudio(): StudioApi {
   const [state, setState] = useState<StudioState>(hydrate);
-  const debouncedInput = useDebounced(state.input, 200);
+
+  const rawValue = useMemo(
+    () => CONTENT_TYPES[state.contentKind].encode(state.contentValues[state.contentKind] ?? {}),
+    [state.contentKind, state.contentValues],
+  );
+  const debouncedValue = useDebounced(rawValue, 200);
 
   const design = DESIGN_BY_ID.get(state.designId) ?? DEFAULT_DESIGN;
   const size = SIZE_BY_ID.get(state.sizeId) ?? DEFAULT_SIZE;
@@ -109,7 +129,27 @@ export function useQrStudio(): StudioApi {
     setState((prev) => ({ ...prev, ...partial }));
   }, []);
 
-  const reset = useCallback(() => setState({ ...INITIAL, input: '' }), []);
+  const reset = useCallback(() => setState(INITIAL), []);
+
+  /** מעדכן שדה בודד בטופס של הסוג הפעיל. */
+  const setField = useCallback((name: string, value: string) => {
+    setState((prev) => ({
+      ...prev,
+      contentValues: {
+        ...prev.contentValues,
+        [prev.contentKind]: { ...prev.contentValues[prev.contentKind], [name]: value },
+      },
+    }));
+  }, []);
+
+  /** טוען ערכים מוכנים לסוג מסוים — לשחזור מההיסטוריה. */
+  const loadContent = useCallback((kind: ContentKind, values: FieldValues) => {
+    setState((prev) => ({
+      ...prev,
+      contentKind: kind,
+      contentValues: { ...prev.contentValues, [kind]: values },
+    }));
+  }, []);
 
   const resetCustomizations = useCallback(() => {
     setState((prev) => ({
@@ -126,12 +166,10 @@ export function useQrStudio(): StudioApi {
     }));
   }, []);
 
-  const check = useMemo(() => checkInput(debouncedInput), [debouncedInput]);
-
   const options = useMemo<QrOptions | null>(() => {
-    if (!check.normalized) return null;
+    if (!debouncedValue) return null;
     return {
-      value: check.normalized,
+      value: debouncedValue,
       design,
       bodyOverride: state.bodyOverride ?? undefined,
       eyeFrameOverride: state.bodyOverride ?? undefined,
@@ -148,7 +186,7 @@ export function useQrStudio(): StudioApi {
       logo: state.logo,
       frame: { enabled: state.frameEnabled, text: state.frameText },
     };
-  }, [check.normalized, design, state]);
+  }, [debouncedValue, design, state]);
 
   const { geometry, error } = useMemo<{ geometry: QrGeometry | null; error: string | null }>(() => {
     if (!options) return { geometry: null, error: null };
@@ -168,7 +206,7 @@ export function useQrStudio(): StudioApi {
   /** תצוגה מקדימה קטנה לגלריה — תמיד עם ההגדרות המקוריות של העיצוב. */
   const buildPreview = useCallback(
     (previewDesign: QrDesign): QrGeometry | null => {
-      const value = check.normalized || 'https://example.com';
+      const value = debouncedValue || 'https://example.com';
       try {
         return buildGeometry({
           value,
@@ -184,7 +222,7 @@ export function useQrStudio(): StudioApi {
         return null;
       }
     },
-    [check.normalized],
+    [debouncedValue],
   );
 
   // שמירת העדפות — לא כולל הקלט עצמו, שנשמר בהיסטוריה בנפרד
@@ -209,15 +247,17 @@ export function useQrStudio(): StudioApi {
   return {
     state,
     patch,
+    setField,
+    loadContent,
     reset,
     resetCustomizations,
     design,
     size,
-    encodedValue: check.normalized,
-    inputNote: check.note,
+    encodedValue: debouncedValue,
+    inputNote: contentNote(state.contentKind, state.contentValues[state.contentKind] ?? {}),
     geometry,
     buildPreview,
     error,
-    isEmpty: !state.input.trim(),
+    isEmpty: !rawValue,
   };
 }

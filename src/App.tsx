@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Link2, Palette, Ruler, Sparkles, Type } from 'lucide-react';
+import { IdCard, Link2, Palette, Ruler, Sparkles, Type } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ExportDock } from './components/ExportDock';
 import { Header } from './components/Header';
@@ -10,6 +10,7 @@ import { UpdatePrompt } from './components/UpdatePrompt';
 import { ContentInput } from './components/ContentInput';
 import { BrandSheet } from './components/sheets/BrandSheet';
 import { DesignSheet } from './components/sheets/DesignSheet';
+import { CardSheet } from './components/sheets/CardSheet';
 import { DynamicSheet } from './components/sheets/DynamicSheet';
 import { ExportSheet, type ExportMode } from './components/sheets/ExportSheet';
 import { SizeSheet } from './components/sheets/SizeSheet';
@@ -29,10 +30,21 @@ import { listItem, listParent } from './lib/motion';
 import { CONTENT_TYPES } from './lib/qr/content';
 import { labelFor, DOT_SCALES, MODULE_SHAPES } from './lib/qr/options';
 import { paintToColor } from './lib/qr/render/common';
+import { DEFAULT_TEMPLATE, TEMPLATE_BY_ID } from './lib/cards/templates';
+import type { CardState } from './lib/cards/types';
 import { linkUrl } from './lib/dynamic';
 import { loadHistory, pushHistory, removeHistory, type HistoryEntry } from './lib/storage';
 
-type SheetName = 'design' | 'style' | 'brand' | 'size' | 'install' | 'export' | 'dynamic' | null;
+type SheetName =
+  | 'design'
+  | 'style'
+  | 'brand'
+  | 'size'
+  | 'install'
+  | 'export'
+  | 'dynamic'
+  | 'card'
+  | null;
 
 export default function App(): ReactNode {
   const studio = useQrStudio();
@@ -43,6 +55,11 @@ export default function App(): ReactNode {
 
   const [sheet, setSheet] = useState<SheetName>(null);
   const [exportMode, setExportMode] = useState<ExportMode>('download');
+  const [card, setCard] = useState<CardState>({
+    templateId: DEFAULT_TEMPLATE.id,
+    values: {},
+    qrOverride: null,
+  });
   const [history, setHistory] = useState<HistoryEntry[]>(() => loadHistory());
   const lastTracked = useRef('');
   const installOffered = useRef(false);
@@ -198,6 +215,16 @@ export default function App(): ReactNode {
                 onClick={() => setSheet('size')}
               />
               <SettingRow
+                icon={<IdCard size={18} aria-hidden />}
+                label="כרטיסייה מעוצבת"
+                value={
+                  TEMPLATE_BY_ID.get(card.templateId)?.name
+                    ? `${TEMPLATE_BY_ID.get(card.templateId)!.name} · כרטיס להדפסה`
+                    : 'כרטיס ביקור, שלט או מדבקה'
+                }
+                onClick={() => setSheet('card')}
+              />
+              <SettingRow
                 icon={<Link2 size={18} aria-hidden />}
                 label="קוד דינמי"
                 value={
@@ -272,6 +299,16 @@ export default function App(): ReactNode {
           patch({ sizeId: s.id });
           void track('size_selected', { size: s.id });
         }}
+      />
+
+      <CardSheet
+        open={sheet === 'card'}
+        onClose={closeSheet}
+        geometry={geometry}
+        state={card}
+        onChange={setCard}
+        onError={toast.error}
+        fileName={exportActions.resolvedFileName}
       />
 
       <DynamicSheet

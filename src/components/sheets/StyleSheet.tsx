@@ -1,4 +1,4 @@
-import { RotateCcw } from 'lucide-react';
+import { Dices, RotateCcw } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
 import { Button } from '../ui/Button';
 import { ColorField } from '../ui/ColorField';
@@ -16,6 +16,7 @@ import {
   QUIET_ZONES,
   snapTo,
 } from '@/lib/qr/options';
+import { shuffleDesign } from '@/lib/qr/shuffle';
 import type { QrDesign } from '@/lib/qr/types';
 
 interface StyleSheetProps {
@@ -68,6 +69,17 @@ export function StyleSheet({
         ) : undefined
       }
     >
+      <Button
+        variant="soft"
+        size="md"
+        block
+        icon={<Dices size={16} />}
+        onClick={() => patch(shuffleDesign())}
+        className="mt-1"
+      >
+        הגרלת שילוב
+      </Button>
+
       <Section title="צבע">
         <div className="space-y-4">
           <ColorField

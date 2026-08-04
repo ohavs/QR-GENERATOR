@@ -1,10 +1,13 @@
 import { motion } from 'framer-motion';
-import { ImageUp, Loader2, Trash2, Wand2 } from 'lucide-react';
-import { useCallback, useRef, useState, type ReactNode } from 'react';
+import { Check, ImageUp, Loader2, Palette, Trash2, Wand2 } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Sheet } from '../ui/Sheet';
 import { Divider, Pills, Section, Toggle } from '../ui/controls';
 import type { StudioState } from '@/hooks/useQrStudio';
+import { extractPalette } from '@/lib/logo/palette';
 import { removeBackground, type BackgroundStrength } from '@/lib/logo/removeBackground';
+import { paintToColor } from '@/lib/qr/render/common';
+import { cn } from '@/lib/cn';
 import { springSnappy } from '@/lib/motion';
 import { BG_STRENGTHS, LOGO_RADII, LOGO_SCALES, snapTo } from '@/lib/qr/options';
 import type { LogoSpec, QrDesign } from '@/lib/qr/types';
@@ -33,6 +36,36 @@ export function BrandSheet({
 }: BrandSheetProps): ReactNode {
   const fileRef = useRef<HTMLInputElement>(null);
   const [working, setWorking] = useState(false);
+  const [palette, setPalette] = useState<string[]>([]);
+
+  const backgroundColor = state.transparent
+    ? '#FFFFFF'
+    : paintToColor(state.backgroundOverride ?? design.background ?? { type: 'solid', color: '#FFFFFF' });
+
+  /*
+   * חילוץ הפלטה מהמקור ולא מהתמונה המעובדת: הסרת רקע יכולה לאכול גוונים
+   * בקצוות, והצבעים של המותג נמצאים בקובץ שהועלה.
+   */
+  const logoSource = state.logo?.originalSrc;
+  useEffect(() => {
+    if (!logoSource) {
+      setPalette([]);
+      return;
+    }
+    let cancelled = false;
+    void extractPalette(logoSource, { background: backgroundColor })
+      .then((colors) => {
+        if (!cancelled) setPalette(colors);
+      })
+      .catch(() => {
+        if (!cancelled) setPalette([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [logoSource, backgroundColor]);
+
+  const activeBody = state.bodyOverride?.type === 'solid' ? state.bodyOverride.color : null;
 
   /**
    * מחיל (או מבטל) הסרת רקע על הלוגו.
@@ -132,6 +165,45 @@ export function BrandSheet({
                 <Trash2 size={16} aria-hidden />
               </motion.button>
             </div>
+
+            {palette.length > 0 && (
+              <div className="space-y-2.5">
+                <p className="flex items-center gap-1.5 text-[0.8125rem] font-semibold">
+                  <Palette size={14} className="text-accent" aria-hidden />
+                  צבעים מהלוגו
+                </p>
+                <div className="rail -mx-5 flex gap-2 px-5 py-0.5">
+                  {palette.map((color) => {
+                    const active = activeBody === color;
+                    return (
+                      <motion.button
+                        key={color}
+                        type="button"
+                        whileTap={{ scale: 0.9 }}
+                        transition={springSnappy}
+                        onClick={() => patch({ bodyOverride: { type: 'solid', color } })}
+                        aria-label={`צביעת הקוד ב-${color}`}
+                        aria-pressed={active}
+                        className={cn(
+                          'grid h-11 w-11 shrink-0 place-items-center rounded-full border',
+                          active ? 'border-fg' : 'border-black/10 dark:border-white/15',
+                        )}
+                        style={{ background: color }}
+                      >
+                        {active && (
+                          <span className="grid h-5 w-5 place-items-center rounded-full bg-white shadow">
+                            <Check size={12} strokeWidth={3} className="text-black" aria-hidden />
+                          </span>
+                        )}
+                      </motion.button>
+                    );
+                  })}
+                </div>
+                <p className="text-xs leading-relaxed text-fg-muted">
+                  הצבעים חולצו מהלוגו והוכהו לפי הצורך כדי שהקוד יישאר סָריק.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2.5">
               <div className="flex items-center justify-between gap-3">

@@ -16,7 +16,8 @@
     "test:logo": "node scripts/logo-bg-test.mjs",
     "test:content": "node scripts/content-test.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:palette": "node scripts/palette-test.mjs"
   },
   "dependencies": {
     "firebase": "^12.17.0",

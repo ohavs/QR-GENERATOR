@@ -22,7 +22,7 @@ import type {
 } from './types';
 
 /** גובה אזור הכיתוב ביחידות מודול, כפונקציה של גודל הלוח. */
-function frameHeight(boardSize: number): number {
+export function frameHeight(boardSize: number): number {
   return Math.min(7, Math.max(4, boardSize * 0.13));
 }
 

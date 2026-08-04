@@ -79,6 +79,12 @@ jobs:
       - name: בדיקת ייצוא
         run: npm run test:export
 
+      - name: בדיקת סריקוּת בגיליון מדבקות
+        run: npm run test:batch-scan
+
+      - name: בדיקת ייצור באצווה
+        run: npm run test:batch
+
       - name: לוגים של השרתים בכישלון
         if: failure()
         run: tail -50 /tmp/vite-dev.log /tmp/vite-preview.log

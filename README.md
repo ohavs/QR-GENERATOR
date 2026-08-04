@@ -111,16 +111,18 @@ FIREBASE_TOKEN=<האסימון> firebase deploy --only hosting
 ### בדיקות רגרסיה
 
 ```bash
-npm test                       # 93 בדיקות יחידה על המודולים הטהורים
+npm test                       # 148 בדיקות יחידה על המודולים הטהורים
 
-npm run dev                    # פורט 5174 — נדרש ל-scan/content/logo
+npm run dev                    # פורט 5174 — נדרש ל-scan/content/logo/batch-scan
 npm run test:scan              # כל עיצוב × 2 וריאציות × 3 גדלים, מפוענח בחזרה
 npm run test:content           # 10 סוגי התוכן: קידוד לפי התקן + פענוח חוזר
 npm run test:logo              # הסרת רקע: רקע נעלם, לוגו נשאר, חור פנימי שורד
 npm run test:palette           # חילוץ פלטה: בלי אפורים, והכול עובר את סף הניגודיות
+npm run test:batch-scan        # כל צפיפות בגיליון, ברזולוציה שמצלמה קולטת בגודל הזה
 
 npm run build && npm run preview   # פורט 4173
 npm run test:export            # כל פורמט ייצוא מפיק קובץ תקין
+npm run test:batch             # ייצור באצווה: הגיליון נפתח כ-PDF, הארכיון כ-ZIP
 ```
 
 בדיקות הדפדפן משתמשות ב-`scripts/browser.mjs`, שנותן ל-Playwright לאתר את

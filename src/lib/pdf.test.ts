@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildPdfDocument, pdfString, PT_PER_MM } from './pdf';
+import { buildPdf, buildPdfDocument, pdfString, PT_PER_MM } from './pdf';
 
 /**
  * ה-PDF נכתב ביד, ולכן טבלת ה-xref היא הנקודה השברירית: כל היסט חייב להצביע
@@ -70,6 +70,81 @@ describe('buildPdfDocument', () => {
     const pdf = await render();
     const declared = Number(/\/Filter \/FlateDecode \/Length (\d+)/.exec(pdf)?.[1]);
     expect(declared).toBe(IMAGE.bytes.length);
+  });
+});
+
+describe('buildPdf — גיליון מרובה עמודים', () => {
+  const cell = (xMm: number, yMm: number) => ({
+    image: IMAGE,
+    xMm,
+    yMm,
+    widthMm: 40,
+    heightMm: 40,
+  });
+
+  async function sheet(): Promise<string> {
+    const blob = buildPdf(
+      [
+        { items: [cell(10, 10), cell(60, 10)], guides: [{ xMm: 10, yMm: 10, widthMm: 40, heightMm: 40 }] },
+        { items: [cell(10, 10)] },
+      ],
+      { widthMm: 210, heightMm: 297, title: 'גיליון' },
+    );
+    return new TextDecoder('latin1').decode(await blob.arrayBuffer());
+  }
+
+  it('עץ העמודים מונה את כל העמודים ומצביע עליהם', async () => {
+    const pdf = await sheet();
+    expect(/\/Count (\d+)/.exec(pdf)?.[1]).toBe('2');
+    expect([...pdf.matchAll(/\/Type \/Page[^s]/g)]).toHaveLength(2);
+  });
+
+  it('כל מזהי העמודים ב-Kids קיימים כאובייקטים', async () => {
+    const pdf = await sheet();
+    const kids = /\/Kids \[([^\]]+)\]/.exec(pdf)?.[1] ?? '';
+    const numbers = [...kids.matchAll(/(\d+) 0 R/g)].map((m) => m[1]);
+    expect(numbers).toHaveLength(2);
+    for (const number of numbers) {
+      expect(pdf).toMatch(new RegExp(`^${number} 0 obj$`, 'm'));
+    }
+  });
+
+  it('היסטי ה-xref נשארים מדויקים גם עם עמודים רבים', async () => {
+    const pdf = await sheet();
+    const entries = pdf
+      .slice(pdf.indexOf('\nxref\n'))
+      .split('\n')
+      .filter((line) => /^\d{10} \d{5} [nf] $/.test(line));
+
+    entries.slice(1).forEach((entry, index) => {
+      const offset = Number.parseInt(entry.slice(0, 10), 10);
+      expect(pdf.slice(offset)).toMatch(new RegExp(`^${index + 1} 0 obj\\n`));
+    });
+  });
+
+  it('הופך את ציר ה-Y — הקלט יורד מראש העמוד, ה-PDF עולה מתחתיתו', async () => {
+    const pdf = await sheet();
+    const placements = [...pdf.matchAll(/q ([\d.]+) 0 0 ([\d.]+) ([\d.]+) ([\d.]+) cm \/Im\d+ Do Q/g)];
+    expect(placements).toHaveLength(3);
+
+    const [, w, h, x, y] = placements[0];
+    expect(Number(w)).toBeCloseTo(40 * PT_PER_MM, 2);
+    expect(Number(h)).toBeCloseTo(40 * PT_PER_MM, 2);
+    expect(Number(x)).toBeCloseTo(10 * PT_PER_MM, 2);
+    // תא בגובה 40 מ״מ שמתחיל 10 מ״מ מראש הדף יושב 247 מ״מ מעל תחתיתו
+    expect(Number(y)).toBeCloseTo((297 - 10 - 40) * PT_PER_MM, 2);
+  });
+
+  it('קווי חיתוך נכתבים רק בעמוד שביקש אותם', async () => {
+    const pdf = await sheet();
+    expect([...pdf.matchAll(/re S/g)]).toHaveLength(1);
+  });
+
+  it('כל תמונה בעמוד מקבלת שם משאב משלה', async () => {
+    const pdf = await sheet();
+    const resources = /\/XObject << ([^>]+) >>/.exec(pdf)?.[1] ?? '';
+    expect(resources).toContain('/Im0');
+    expect(resources).toContain('/Im1');
   });
 });
 

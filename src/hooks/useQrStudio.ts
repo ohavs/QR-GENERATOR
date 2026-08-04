@@ -112,6 +112,8 @@ export interface StudioApi {
   inputNote: string | null;
   /** הגאומטריה של הקוד שמוצג כרגע; null כשאין קלט */
   geometry: QrGeometry | null;
+  /** בונה קוד בערך אחר עם אותן הגדרות עיצוב — לייצור באצווה. זורק בכישלון */
+  buildWith: (value: string, frameText?: string | null) => QrGeometry;
   /** גאומטריה של תצוגה מקדימה "נקייה" — לגלריית העיצובים */
   buildPreview: (design: QrDesign) => QrGeometry | null;
   error: string | null;
@@ -176,10 +178,16 @@ export function useQrStudio(): StudioApi {
     }));
   }, []);
 
-  const options = useMemo<QrOptions | null>(() => {
-    if (!debouncedValue) return null;
-    return {
-      value: debouncedValue,
+  /**
+   * אותן הגדרות עיצוב, ערך אחר.
+   *
+   * `frameText` מפורש דורס את הכיתוב: `null` מכבה אותו, מחרוזת מדליקה אותו עם
+   * הטקסט שנמסר, ו-undefined משאיר את בחירת המשתמש. זה מה שמאפשר לייצור
+   * באצווה לשים כיתוב שונה מתחת לכל קוד בלי לגעת במצב.
+   */
+  const optionsFor = useCallback(
+    (value: string, frameText?: string | null): QrOptions => ({
+      value,
       design,
       bodyOverride: state.bodyOverride ?? undefined,
       eyeFrameOverride: state.bodyOverride ?? undefined,
@@ -194,9 +202,18 @@ export function useQrStudio(): StudioApi {
       dotScale: state.dotScale ?? undefined,
       cornerRadius: state.cornerRadius ?? undefined,
       logo: state.logo,
-      frame: { enabled: state.frameEnabled, text: state.frameText },
-    };
-  }, [debouncedValue, design, state]);
+      frame:
+        frameText === undefined
+          ? { enabled: state.frameEnabled, text: state.frameText }
+          : { enabled: Boolean(frameText), text: frameText ?? '' },
+    }),
+    [design, state],
+  );
+
+  const options = useMemo<QrOptions | null>(
+    () => (debouncedValue ? optionsFor(debouncedValue) : null),
+    [debouncedValue, optionsFor],
+  );
 
   const { geometry, error } = useMemo<{ geometry: QrGeometry | null; error: string | null }>(() => {
     if (!options) return { geometry: null, error: null };
@@ -212,6 +229,11 @@ export function useQrStudio(): StudioApi {
       };
     }
   }, [options]);
+
+  const buildWith = useCallback(
+    (value: string, frameText?: string | null): QrGeometry => buildGeometry(optionsFor(value, frameText)),
+    [optionsFor],
+  );
 
   /** תצוגה מקדימה קטנה לגלריה — תמיד עם ההגדרות המקוריות של העיצוב. */
   const buildPreview = useCallback(
@@ -268,6 +290,7 @@ export function useQrStudio(): StudioApi {
       ? 'הקוד מצביע על הכתובת הקצרה — אפשר להחליף את היעד בכל רגע'
       : contentNote(state.contentKind, state.contentValues[state.contentKind] ?? {}),
     geometry,
+    buildWith,
     buildPreview,
     error,
     isEmpty: !rawValue,

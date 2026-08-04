@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { IdCard, Link2, Palette, Ruler, Sparkles, Type } from 'lucide-react';
+import { IdCard, Layers, Link2, Palette, Ruler, Sparkles, Type } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AnonymousNotice } from './components/AnonymousNotice';
 import { ExportDock } from './components/ExportDock';
@@ -9,6 +9,7 @@ import { InstallSheet } from './components/InstallSheet';
 import { QrPreview } from './components/QrPreview';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { ContentInput } from './components/ContentInput';
+import { BatchSheet } from './components/sheets/BatchSheet';
 import { BrandSheet } from './components/sheets/BrandSheet';
 import { DesignSheet } from './components/sheets/DesignSheet';
 import { CardSheet } from './components/sheets/CardSheet';
@@ -45,6 +46,7 @@ type SheetName =
   | 'export'
   | 'dynamic'
   | 'card'
+  | 'batch'
   | null;
 
 export default function App(): ReactNode {
@@ -239,6 +241,12 @@ export default function App(): ReactNode {
                 onClick={() => setSheet('card')}
               />
               <SettingRow
+                icon={<Layers size={18} aria-hidden />}
+                label="ייצור באצווה"
+                value="רשימת קישורים → גיליון מדבקות או ארכיון"
+                onClick={() => setSheet('batch')}
+              />
+              <SettingRow
                 icon={<Link2 size={18} aria-hidden />}
                 label="קוד דינמי"
                 value={
@@ -323,6 +331,15 @@ export default function App(): ReactNode {
         onChange={setCard}
         onError={toast.error}
         fileName={exportActions.resolvedFileName}
+      />
+
+      <BatchSheet
+        open={sheet === 'batch'}
+        onClose={closeSheet}
+        buildWith={studio.buildWith}
+        boardSize={geometry?.boardSize ?? null}
+        onError={toast.error}
+        onInfo={toast.success}
       />
 
       <DynamicSheet

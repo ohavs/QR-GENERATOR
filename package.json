@@ -17,7 +17,9 @@
     "test:content": "node scripts/content-test.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:palette": "node scripts/palette-test.mjs"
+    "test:palette": "node scripts/palette-test.mjs",
+    "test:batch": "node scripts/batch-test.mjs",
+    "test:batch-scan": "node scripts/batch-scan-test.mjs"
   },
   "dependencies": {
     "firebase": "^12.17.0",

@@ -1,9 +1,9 @@
 /**
- * כותב PDF מינימלי לתמונה בודדת בעמוד אחד.
+ * כותב PDF מינימלי.
  *
  * למה לא ספרייה: ספריות ה-PDF הנפוצות גוררות איתן html2canvas ו-DOMPurify
- * (מעל 600KB) בשביל יכולות שאנחנו לא משתמשים בהן. כאן צריך בדיוק דבר אחד —
- * להטביע תמונה אחת בעמוד בגודל פיזי מדויק — וזה כמה עשרות שורות.
+ * (מעל 600KB) בשביל יכולות שאנחנו לא משתמשים בהן. כאן צריך בדיוק שני דברים —
+ * להטביע תמונות בגודל פיזי מדויק, ולצייר קווי חיתוך — וזה כמה עשרות שורות.
  *
  * ברירת המחדל היא FlateDecode על פיקסלים גולמיים, כלומר ללא אובדן: לקוד QR
  * זה קריטי, כי ארטיפקטים של JPEG סביב קצוות חדים פוגעים בסריקה בגדלים קטנים.
@@ -84,7 +84,7 @@ interface ImagePayload {
 }
 
 /** מכין את גוף התמונה: ללא אובדן אם הדפדפן תומך בדחיסה, אחרת JPEG באיכות גבוהה. */
-async function encodeImage(canvas: HTMLCanvasElement): Promise<ImagePayload> {
+export async function encodeImage(canvas: HTMLCanvasElement): Promise<ImagePayload> {
   const ctx = canvas.getContext('2d');
   if (ctx) {
     const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -117,43 +117,116 @@ export interface PdfImage {
   pixelHeight: number;
 }
 
+/** מלבן במילימטרים, עם ציר Y יורד מראש העמוד — כמו במסך, לא כמו ב-PDF. */
+export interface PdfRect {
+  xMm: number;
+  yMm: number;
+  widthMm: number;
+  heightMm: number;
+}
+
+export interface PdfPlacement extends PdfRect {
+  image: PdfImage;
+}
+
+export interface PdfPage {
+  items: PdfPlacement[];
+  /** מלבנים מקווקווים לחיתוך — עוזרים לגזור גיליון מדבקות בדיוק */
+  guides?: PdfRect[];
+}
+
+interface PdfObject {
+  head: string;
+  stream?: Uint8Array;
+}
+
 /**
- * מרכיב את מסמך ה-PDF מתמונה מקודדת.
+ * מ"מ לנקודות, מעוגל לשלוש ספרות.
  *
- * מופרד מ-`canvasToPdf` כדי שאפשר יהיה לבדוק את הרכבת המסמך — במיוחד את טבלת
- * ה-xref, שבה כל היסט חייב להצביע בדיוק על תחילת האובייקט — בלי דפדפן.
+ * העיגול אינו קוסמטי: בלעדיו חיסור בין ערכים מומרים מייצר זנבות של נקודה
+ * צפה ("700.1579999999999") שמנפחים את הקובץ בכל מיקום ומיקום.
  */
-export function buildPdfDocument(image: PdfImage, options: PdfOptions): Blob {
-  const { bytes: imageBytes, filter } = image;
-  const canvas = { width: image.pixelWidth, height: image.pixelHeight };
-  const pageW = +(options.widthMm * PT_PER_MM).toFixed(3);
-  const pageH = +(options.heightMm * PT_PER_MM).toFixed(3);
+const pt = (mm: number): number => +(mm * PT_PER_MM).toFixed(3);
 
-  const content = `q ${pageW} 0 0 ${pageH} 0 0 cm /Im0 Do Q\n`;
-  const title = pdfString(options.title ?? 'QR Code');
+/** אותו עיגול, על ערך שכבר בנקודות */
+const round = (value: number): number => +value.toFixed(3);
 
-  const objects: Array<{ head: string; stream?: Uint8Array }> = [
-    { head: '<< /Type /Catalog /Pages 2 0 R >>' },
-    { head: '<< /Type /Pages /Kids [3 0 R] /Count 1 >>' },
-    {
+function imageObject(image: PdfImage): PdfObject {
+  return {
+    head:
+      '<< /Type /XObject /Subtype /Image ' +
+      `/Width ${image.pixelWidth} /Height ${image.pixelHeight} ` +
+      `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /${image.filter} ` +
+      `/Length ${image.bytes.length} >>`,
+    stream: image.bytes,
+  };
+}
+
+/**
+ * מרכיב מסמך PDF מרובה עמודים ותמונות.
+ *
+ * מופרד מהרינדור כדי שאפשר יהיה לבדוק את הרכבת המסמך — במיוחד את טבלת ה-xref,
+ * שבה כל היסט חייב להצביע בדיוק על תחילת האובייקט — בלי דפדפן.
+ *
+ * מספור האובייקטים נקבע תוך כדי בנייה, ולכן שני האובייקטים הראשונים (הקטלוג
+ * ועץ העמודים) שמורים מראש: העץ חייב להכיר את מספרי כל העמודים, שנודעים רק
+ * בסוף, וכל עמוד חייב להצביע חזרה על העץ במספר קבוע.
+ */
+export function buildPdf(pages: PdfPage[], options: PdfOptions): Blob {
+  const pageW = pt(options.widthMm);
+  const pageH = pt(options.heightMm);
+
+  const objects: PdfObject[] = [{ head: '' }, { head: '' }];
+  const alloc = (obj: PdfObject): number => {
+    objects.push(obj);
+    return objects.length;
+  };
+
+  const pageNumbers = pages.map((page) => {
+    const resources: string[] = [];
+    let content = '';
+
+    page.items.forEach((item, index) => {
+      const name = `Im${index}`;
+      resources.push(`/${name} ${alloc(imageObject(item.image))} 0 R`);
+      const w = pt(item.widthMm);
+      const h = pt(item.heightMm);
+      // ציר ה-Y ב-PDF עולה מתחתית העמוד; הקלט יורד מראשו
+      const y = round(pageH - pt(item.yMm) - h);
+      content += `q ${w} 0 0 ${h} ${pt(item.xMm)} ${y} cm /${name} Do Q\n`;
+    });
+
+    if (page.guides?.length) {
+      content += 'q 0.4 w 0.75 G [3 3] 0 d\n';
+      for (const guide of page.guides) {
+        const h = pt(guide.heightMm);
+        content += `${pt(guide.xMm)} ${round(pageH - pt(guide.yMm) - h)} ${pt(guide.widthMm)} ${h} re S\n`;
+      }
+      content += 'Q\n';
+    }
+
+    const stream = new TextEncoder().encode(content);
+    const contentNumber = alloc({ head: `<< /Length ${stream.length} >>`, stream });
+
+    return alloc({
       head:
         `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageW} ${pageH}] ` +
-        '/Resources << /XObject << /Im0 4 0 R >> /ProcSet [/PDF /ImageC] >> /Contents 5 0 R >>',
-    },
-    {
-      head:
-        '<< /Type /XObject /Subtype /Image ' +
-        `/Width ${canvas.width} /Height ${canvas.height} ` +
-        `/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /${filter} ` +
-        `/Length ${imageBytes.length} >>`,
-      stream: imageBytes,
-    },
-    {
-      head: `<< /Length ${content.length} >>`,
-      stream: new TextEncoder().encode(content),
-    },
-    { head: `<< /Producer (QR Studio) /Title ${title} /Creator (QR Studio) >>` },
-  ];
+        `/Resources << /XObject << ${resources.join(' ')} >> /ProcSet [/PDF /ImageC] >> ` +
+        `/Contents ${contentNumber} 0 R >>`,
+    });
+  });
+
+  const title = pdfString(options.title ?? 'QR Code');
+  const infoNumber = alloc({
+    head: `<< /Producer (QR Studio) /Title ${title} /Creator (QR Studio) >>`,
+  });
+
+  objects[0] = { head: '<< /Type /Catalog /Pages 2 0 R >>' };
+  objects[1] = {
+    head:
+      `<< /Type /Pages /Kids [${pageNumbers.map((n) => `${n} 0 R`).join(' ')}] ` +
+      `/Count ${pages.length} >>`,
+  };
 
   const pdf = new PdfBuffer();
   pdf.text('%PDF-1.4\n');
@@ -178,11 +251,25 @@ export function buildPdfDocument(image: PdfImage, options: PdfOptions): Blob {
     pdf.text(`${String(offset).padStart(10, '0')} 00000 n \n`);
   }
   pdf.text(
-    `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R /Info ${objects.length} 0 R >>\n` +
+    `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R /Info ${infoNumber} 0 R >>\n` +
       `startxref\n${xrefOffset}\n%%EOF\n`,
   );
 
   return pdf.toBlob();
+}
+
+/** עמוד אחד שבו התמונה ממלאת את כל שטח העמוד. */
+export function buildPdfDocument(image: PdfImage, options: PdfOptions): Blob {
+  return buildPdf(
+    [
+      {
+        items: [
+          { image, xMm: 0, yMm: 0, widthMm: options.widthMm, heightMm: options.heightMm },
+        ],
+      },
+    ],
+    options,
+  );
 }
 
 /** בונה PDF בן עמוד אחד שבו התמונה ממלאת את כל שטח העמוד. */

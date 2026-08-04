@@ -1,0 +1,18 @@
+node_modules/
+dist/
+dev-dist/
+.vite/
+
+# משתני סביבה מקומיים
+.env
+.env.local
+.env.*.local
+
+# פלטי בדיקות
+test-output/
+*.log
+
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

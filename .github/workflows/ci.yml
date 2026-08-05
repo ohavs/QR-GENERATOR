@@ -85,6 +85,8 @@ jobs:
       - name: בדיקת ייצור באצווה
         run: npm run test:batch
 
+      # `-n 50` ולא `-50`: הצורה המקוצרת מיושנת, ו-GNU tail דוחה אותה כשיש
+      # יותר מקובץ אחד — כך ששלב הדיאגנוסטיקה עצמו נכשל והסתיר את הלוגים
       - name: לוגים של השרתים בכישלון
         if: failure()
-        run: tail -50 /tmp/vite-dev.log /tmp/vite-preview.log
+        run: tail -n 50 /tmp/vite-dev.log /tmp/vite-preview.log

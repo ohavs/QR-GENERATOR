@@ -21,6 +21,23 @@ import type {
   QrOptions,
 } from './types';
 
+/*
+  שלושת המספרים שקובעים כמה "דיו" יש במודול ובעין.
+
+  הם נמדדו מול מפענח אמיתי ולא נבחרו לפי מראה: `npm run test:scan` סורק רשת
+  של גדלים וערכים ומדווח שיעור פענוח לכל עיצוב. הערכים הקודמים (קיטום 1.2,
+  מעוין 1.3) הורידו את gold-noir ל-58% ואת emerald-gem ל-82% — כלומר קוד
+  שנכשל בכל סריקה שנייה, ובדיקה שנכשלה בכל דחיפה שנייה. שינוי כאן מחייב
+  הרצה חוזרת של אותה בדיקה.
+*/
+
+/** עומק הקיטום בפינות מסגרת העין. עמוק מדי שובר את יחס 1:1:3:1:1. */
+const CUT_OUTER = 0.8;
+const CUT_INNER = 0.56;
+
+/** מילוי המעוין. נמוך מדי מדלל את הצפיפות המקומית שהמפענח מסתמך עליה. */
+const DIAMOND_FILL = 1.42;
+
 /** גובה אזור הכיתוב ביחידות מודול, כפונקציה של גודל הלוח. */
 export function frameHeight(boardSize: number): number {
   return Math.min(7, Math.max(4, boardSize * 0.13));
@@ -49,7 +66,7 @@ function moduleGlyph(shape: ModuleShape, x: number, y: number, s: number): strin
     // יישאר כהה מספיק לסורק. ראו scan-test.mjs.
     case 'diamond':
       // מעל ~1.3 המעוינים נושקים זה לזה באלכסון ומטשטשים את גבול המודול
-      return diamond(cx, cy, r * 1.3);
+      return diamond(cx, cy, r * DIAMOND_FILL);
     case 'classy':
       return roundedRect(px, py, s, s, [s * 0.5, 0, s * 0.5, 0]);
     case 'star':
@@ -171,7 +188,7 @@ function eyeFrameGlyph(shape: EyeFrameShape, ox: number, oy: number): string {
     case 'cut':
       // הקיטום נשאר מתון: סורקים מזהים את תבנית האיתור לפי יחס 1:1:3:1:1
       // לאורך קווי סריקה, וקיטום עמוק שובר את היחס בשורות הקרובות לקצה.
-      return cutRect(ox, oy, S, S, 1.2) + cutRect(ix, iy, inner, inner, 0.85);
+      return cutRect(ox, oy, S, S, CUT_OUTER) + cutRect(ix, iy, inner, inner, CUT_INNER);
     default:
       return rect(ox, oy, S, S) + rect(ix, iy, inner, inner);
   }
@@ -297,7 +314,20 @@ export function buildGeometry(opts: QrOptions): QrGeometry {
   const matrix = encode(opts.value, opts.ecLevel);
   const count = matrix.size;
 
-  const quiet = Math.max(0, opts.quietZone);
+  /*
+    המסגרת הדקורטיבית יושבת **מחוץ** לאזור השקט, לא בתוכו.
+
+    התקן דורש ארבעה מודולים נקיים סביב הקוד, וסורק מסתמך על זה כדי למצוא את
+    ריבועי הזיהוי. ארבעה עיצובים כאן מציירים קו דקורטיבי בהיסט קבוע משפת
+    הלוח, וכשההיסט נמדד לתוך אותם ארבעה מודולים נשארו פחות משלושה נקיים —
+    מספיק כדי לעבור אצלי ולהיכשל על רסטרייזר אחר. זו הייתה הסיבה האמיתית
+    לכישלון החוזר של gold-noir ב-CI, ולא רעש בבדיקה.
+
+    לכן הלוח גדל ברוחב שהקו תופס: `opts.quietZone` ממשיך להיות המרווח הנקי
+    שהמשתמש ביקש, והקישוט מתווסף מסביבו.
+  */
+  const plateReach = design.plate ? design.plate.inset + design.plate.width / 2 : 0;
+  const quiet = Math.max(0, opts.quietZone) + plateReach;
   const boardSize = count + quiet * 2;
   const offset = quiet;
   const radiusPct = opts.cornerRadius ?? design.cornerRadius;

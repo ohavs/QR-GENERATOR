@@ -157,3 +157,43 @@ describe('buildGeometry', () => {
     expect(buildGeometry(base()).body.d).toBe(buildGeometry(base()).body.d);
   });
 });
+
+/**
+ * אזור שקט נקי — האינווריאנט שנשבר בשקט.
+ *
+ * ארבעה עיצובים מציירים קו דקורטיבי סביב הקוד. כשההיסט שלהם נמדד לתוך אזור
+ * השקט, נשארו פחות משלושה מודולים נקיים במקום ארבעה שהתקן דורש — וזה עבר
+ * בבדיקת הפענוח המקומית ונפל ב-CI, שוב ושוב, על עיצוב אחר בכל פעם.
+ *
+ * הבדיקה הזאת היא חשבון על הגאומטריה ולא פענוח של תמונה, ולכן היא נותנת את
+ * אותה תשובה בכל סביבה. זה מה שהופך אותה לשער אמיתי במקום למדד רעש.
+ */
+describe('אזור שקט נקי סביב הקוד', () => {
+  /** ארבעה מודולים — המינימום שתקן ISO/IEC 18004 דורש. */
+  const REQUIRED = 4;
+
+  it.each(DESIGNS.map((d) => [d.id, d] as const))('%s', (id, design) => {
+    const geo = buildGeometry(base({ design, quietZone: REQUIRED }));
+
+    // המרחק מהקוד לשפת הלוח
+    const clean = geo.offset - (design.plate ? design.plate.inset + design.plate.width / 2 : 0);
+    expect(clean, `${id}: נשארו ${clean.toFixed(2)} מודולים נקיים`).toBeGreaterThanOrEqual(REQUIRED);
+  });
+
+  it('מרווח שהמשתמש ביקש נשמר גם מתחת לקו דקורטיבי', () => {
+    // המשתמש שולט במרווח הנקי; הקישוט מתווסף סביבו ולא גורע ממנו
+    for (const quietZone of [2, 4, 6]) {
+      for (const design of DESIGNS) {
+        const geo = buildGeometry(base({ design, quietZone }));
+        const reach = design.plate ? design.plate.inset + design.plate.width / 2 : 0;
+        expect(geo.offset - reach, `${design.id}@${quietZone}`).toBeCloseTo(quietZone, 6);
+      }
+    }
+  });
+
+  it('עיצוב ללא קו דקורטיבי אינו מנופח', () => {
+    for (const design of DESIGNS.filter((d) => !d.plate)) {
+      expect(buildGeometry(base({ design, quietZone: 4 })).offset, design.id).toBe(4);
+    }
+  });
+});

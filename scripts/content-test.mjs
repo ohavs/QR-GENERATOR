@@ -16,7 +16,6 @@ const ORIGIN = process.env.ORIGIN ?? 'http://localhost:5174';
 
 const CASES = {
   link: { values: { url: 'example.co.il/menu' }, expect: /^https:\/\/example\.co\.il\/menu$/ },
-  text: { values: { text: 'שלום עולם' }, expect: /^שלום עולם$/ },
   wifi: {
     values: { ssid: 'Cafe;Wifi', password: 'pa,ss', security: 'WPA' },
     expect: /^WIFI:T:WPA;S:Cafe\\;Wifi;P:pa\\,ss;;$/,
@@ -34,11 +33,11 @@ const CASES = {
     values: { to: 'a@b.com', subject: 'נושא' },
     expect: /^mailto:a@b\.com\?subject=/,
   },
-  sms: { values: { phone: '0501234567', message: 'הודעה' }, expect: /^SMSTO:0501234567:הודעה$/ },
-  geo: { values: { lat: '32.0853', lon: '34.7818' }, expect: /^geo:32\.0853,34\.7818$/ },
+  sms: { values: { phone: '050-1234567', message: 'היי' }, expect: /^sms:0501234567\?body=/ },
+  geo: { values: { lat: '32.0853', lon: '34.7818' }, expect: /^https:\/\/maps\.google\.com\/\?q=32\.0853,34\.7818$/ },
   event: {
     values: { title: 'כנס', location: 'תל אביב', start: '2026-09-01T10:00', end: '2026-09-01T12:00' },
-    expect: /BEGIN:VEVENT[\s\S]*SUMMARY:כנס[\s\S]*DTSTART:\d{8}T\d{6}Z[\s\S]*END:VEVENT/,
+    expect: /^https:\/\/calendar\.google\.com\/calendar\/render\?.*dates=\d{8}T\d{6}Z%2F\d{8}T\d{6}Z/,
   },
 };
 

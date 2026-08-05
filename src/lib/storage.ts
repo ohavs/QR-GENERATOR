@@ -1,4 +1,4 @@
-import type { ContentKind, FieldValues } from './qr/content';
+import { CONTENT_TYPES, type ContentKind, type FieldValues } from './qr/content';
 import type { EcLevel, ModuleShape, Paint } from './qr/types';
 
 const HISTORY_KEY = 'qr-studio:history:v1';
@@ -54,12 +54,23 @@ function write(key: string, value: unknown): void {
 
 export function loadHistory(): HistoryEntry[] {
   const entries = read<HistoryEntry[]>(HISTORY_KEY) ?? [];
-  // רשומות מגרסה קודמת שמרו מחרוזת בלבד — משוחזרות ככתובת
-  return entries.map((e) => ({
-    ...e,
-    kind: e.kind ?? 'link',
-    values: e.values ?? { url: e.value },
-  }));
+  return (
+    entries
+      .map((e) => ({
+        ...e,
+        // רשומות מגרסה קודמת שמרו מחרוזת בלבד — משוחזרות ככתובת
+        kind: e.kind ?? 'link',
+        values: e.values ?? { url: e.value },
+      }))
+      /*
+        רשומה שסוג התוכן שלה כבר לא קיים מסוננת החוצה.
+
+        סוג "טקסט" הוסר, ובלי הסינון הזה שחזור רשומה ישנה היה ניגש למפה
+        במפתח שאינו קיים ומפיל את המסך — כלומר שינוי בקוד היה שובר את
+        האפליקציה למי שכבר השתמש בה, ורק לו.
+      */
+      .filter((e) => e.kind in CONTENT_TYPES)
+  );
 }
 
 export function pushHistory(entry: Omit<HistoryEntry, 'id' | 'createdAt'>): HistoryEntry[] {

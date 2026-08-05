@@ -7,7 +7,6 @@ import {
   MessageCircle,
   MessageSquare,
   Phone,
-  Type,
   Wifi,
   type LucideIcon,
 } from 'lucide-react';
@@ -21,7 +20,6 @@ import {
 
 export type ContentKind =
   | 'link'
-  | 'text'
   | 'wifi'
   | 'whatsapp'
   | 'vcard'
@@ -116,17 +114,6 @@ export const CONTENT_TYPES: Record<ContentKind, ContentType> = {
       return LOOKS_LIKE_DOMAIN.test(url) ? `https://${url}` : url;
     },
     summary: (v) => trim(v, 'url'),
-  },
-
-  text: {
-    kind: 'text',
-    label: 'טקסט',
-    icon: Type,
-    fields: [
-      { name: 'text', label: 'הטקסט', type: 'textarea', placeholder: 'כל טקסט חופשי', required: true, dir: 'auto' },
-    ],
-    encode: (v) => trim(v, 'text'),
-    summary: (v) => trim(v, 'text'),
   },
 
   wifi: {
@@ -280,8 +267,15 @@ export const CONTENT_TYPES: Record<ContentKind, ContentType> = {
     encode: (v) => {
       const phone = trim(v, 'phone').replace(/[^\d+]/g, '');
       if (!phone) return '';
-      // SMSTO הוא הפורמט שסורקי QR מזהים בעקביות, בניגוד ל-sms: שמתנהג שונה בין מערכות
-      return `SMSTO:${phone}:${trim(v, 'message')}`;
+      /*
+        `sms:` ולא `SMSTO:`.
+
+        SMSTO הוא פורמט שסורקי QR ייעודיים מכירים, אבל מצלמת האייפון —
+        שהיא הסורק שרוב האנשים משתמשים בו — אינה יודעת מה לעשות איתו.
+        `sms:` היא סכימה תקנית ששתי המערכות פותחות באפליקציית ההודעות.
+      */
+      const message = trim(v, 'message');
+      return `sms:${phone}${message ? `?body=${encodeURIComponent(message)}` : ''}`;
     },
     summary: (v) => trim(v, 'phone'),
   },
@@ -304,7 +298,14 @@ export const CONTENT_TYPES: Record<ContentKind, ContentType> = {
       const lon = Number(rawLon);
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) return '';
       if (Math.abs(lat) > 90 || Math.abs(lon) > 180) return '';
-      return `geo:${lat},${lon}`;
+      /*
+        קישור מפות ולא `geo:`.
+
+        `geo:` הוא סכימה שאנדרואיד מכיר, ומצלמת האייפון אינה יודעת מה לעשות
+        איתה — היא פשוט מציגה את המחרוזת. קישור https נפתח באפליקציית המפות
+        בכל מכשיר, וזו כל מטרת הקוד.
+      */
+      return `https://maps.google.com/?q=${lat},${lon}`;
     },
     summary: (v) => `${trim(v, 'lat')}, ${trim(v, 'lon')}`,
   },
@@ -322,15 +323,21 @@ export const CONTENT_TYPES: Record<ContentKind, ContentType> = {
     encode: (v) => {
       const title = trim(v, 'title');
       if (!title) return '';
-      const lines = ['BEGIN:VEVENT', `SUMMARY:${escapeVcard(title)}`];
+      /*
+        קישור הוספה ליומן ולא VEVENT גולמי.
+
+        VEVENT הוא טקסט של תקן iCalendar; אנדרואיד מזהה אותו, ומצלמת האייפון
+        מציגה אותו כמחרוזת ולא מציעה דבר. הקישור כאן נפתח בדפדפן ומוסיף את
+        האירוע ליומן — בכל מכשיר, וגם למי שמשתמש ביומן אחר.
+      */
+      const params = new URLSearchParams({ action: 'TEMPLATE', text: title });
       const location = trim(v, 'location');
       const start = toICalDate(trim(v, 'start'));
       const end = toICalDate(trim(v, 'end'));
-      if (location) lines.push(`LOCATION:${escapeVcard(location)}`);
-      if (start) lines.push(`DTSTART:${start}`);
-      if (end) lines.push(`DTEND:${end}`);
-      lines.push('END:VEVENT');
-      return lines.join('\n');
+      if (location) params.set('location', location);
+      if (start && end) params.set('dates', `${start}/${end}`);
+      else if (start) params.set('dates', `${start}/${start}`);
+      return `https://calendar.google.com/calendar/render?${params.toString()}`;
     },
     summary: (v) => trim(v, 'title'),
   },
@@ -338,7 +345,6 @@ export const CONTENT_TYPES: Record<ContentKind, ContentType> = {
 
 export const CONTENT_ORDER: ContentKind[] = [
   'link',
-  'text',
   'wifi',
   'whatsapp',
   'vcard',

@@ -121,8 +121,12 @@ describe('כרטיס ביקור', () => {
 describe('מיקום', () => {
   const { encode } = CONTENT_TYPES.geo;
 
-  it('בונה geo תקין', () => {
-    expect(encode({ lat: '32.0853', lon: '34.7818' })).toBe('geo:32.0853,34.7818');
+  it('בונה קישור מפות שנפתח בכל מכשיר', () => {
+    // `geo:` נתמך באנדרואיד בלבד; מצלמת האייפון מציגה אותו כמחרוזת ולא
+    // מציעה דבר. קישור https הוא מה שהופך את הקוד לשמיש בשני העולמות.
+    expect(encode({ lat: '32.0853', lon: '34.7818' })).toBe(
+      'https://maps.google.com/?q=32.0853,34.7818',
+    );
   });
 
   it('שדה ריק אינו קואורדינטה 0', () => {
@@ -138,32 +142,40 @@ describe('מיקום', () => {
   });
 
   it('מקבל קואורדינטות שליליות', () => {
-    expect(encode({ lat: '-33.86', lon: '-151.2' })).toBe('geo:-33.86,-151.2');
+    expect(encode({ lat: '-33.86', lon: '-151.2' })).toBe(
+      'https://maps.google.com/?q=-33.86,-151.2',
+    );
   });
 });
 
 describe('אירוע', () => {
   const { encode } = CONTENT_TYPES.event;
 
-  it('בונה VEVENT עם תאריכי UTC', () => {
+  it('בונה קישור הוספה ליומן עם טווח בזמן UTC', () => {
+    // VEVENT גולמי הוא טקסט שמצלמת האייפון רק מציגה. קישור נפתח ומוסיף.
     const result = encode({ title: 'כנס', start: '2026-09-01T10:00', end: '2026-09-01T12:00' });
-    expect(result.startsWith('BEGIN:VEVENT\n')).toBe(true);
-    expect(result.endsWith('\nEND:VEVENT')).toBe(true);
-    expect(result).toMatch(/DTSTART:\d{8}T\d{6}Z/);
+    expect(result.startsWith('https://calendar.google.com/calendar/render?')).toBe(true);
+    expect(result).toContain('action=TEMPLATE');
+    expect(decodeURIComponent(result)).toContain('text=כנס');
+    expect(result).toMatch(/dates=\d{8}T\d{6}Z%2F\d{8}T\d{6}Z/);
   });
 
   it('מדלג על תאריך לא תקין במקום לזרוק', () => {
     const result = encode({ title: 'כנס', start: 'לא תאריך' });
-    expect(result).toContain('SUMMARY:כנס');
-    expect(result).not.toContain('DTSTART');
+    expect(decodeURIComponent(result)).toContain('text=כנס');
+    expect(result).not.toContain('dates=');
   });
 });
 
 describe('SMS ואימייל', () => {
-  it('SMS משתמש ב-SMSTO שסורקים מזהים בעקביות', () => {
+  it('SMS משתמש בסכימת sms: שהמצלמה המובנית פותחת', () => {
     expect(CONTENT_TYPES.sms.encode({ phone: '050-1234567', message: 'היי' })).toBe(
-      'SMSTO:0501234567:היי',
+      `sms:0501234567?body=${encodeURIComponent('היי')}`,
     );
+  });
+
+  it('SMS בלי הודעה הוא סכימה נקייה', () => {
+    expect(CONTENT_TYPES.sms.encode({ phone: '050-1234567' })).toBe('sms:0501234567');
   });
 
   it('אימייל מקודד נושא וגוף כפרמטרים', () => {

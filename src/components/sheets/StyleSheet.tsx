@@ -117,7 +117,7 @@ export function StyleSheet({
             icon={<Dices size={16} />}
             onClick={() => patch(shuffleDesign())}
           >
-            הגרלת שילוב
+            רנדומלי
           </Button>
           {touched && (
             <Button

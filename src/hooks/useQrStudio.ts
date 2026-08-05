@@ -118,10 +118,25 @@ export interface StudioApi {
   buildPreview: (design: QrDesign) => QrGeometry | null;
   error: string | null;
   isEmpty: boolean;
+  /** כמה מהקיבולת נוצלה (0–1) — לחיווי לפני שנתקעים */
+  capacity: number;
+  /** קוד צפוף: ניתן לסריקה, אבל דורש הדפסה גדולה */
+  dense: boolean;
 }
 
-/** מגבלה מעשית: מעבר לכך הקוד נעשה צפוף מדי לסריקה אמינה מהטלפון. */
-const MAX_LENGTH = 1200;
+/**
+ * מגבלת אורך — נמדדת בבתים ולא בתווים.
+ *
+ * קוד QR מקודד בתים, ואות עברית תופסת שניים. חסם של 1200 "תווים" נראה נדיב
+ * ולא נגע בכלום: קידוד עברי נשבר כבר סביב 830 תווים, והמשתמש קיבל הודעת
+ * שגיאה גנרית במקום חסם מובן. הערך כאן הוא קיבולת גרסה 40 ברמת תיקון Q.
+ */
+const MAX_BYTES = 1600;
+
+const byteLength = (value: string): number => new TextEncoder().encode(value).length;
+
+/** ערך הדוגמה של גלריית העיצובים — קצר בכוונה, ראו `buildPreview`. */
+const PREVIEW_VALUE = 'https://qr.studio/preview';
 
 export function useQrStudio(): StudioApi {
   const [state, setState] = useState<StudioState>(hydrate);
@@ -132,7 +147,18 @@ export function useQrStudio(): StudioApi {
       CONTENT_TYPES[state.contentKind].encode(state.contentValues[state.contentKind] ?? {}),
     [state.dynamic, state.contentKind, state.contentValues],
   );
-  const debouncedValue = useDebounced(rawValue, 200);
+
+  /*
+    ההשהיה גדלה עם התוכן.
+
+    בניית הגאומטריה היא 3 מילישניות ב-20 תווים ו-45 ב-600, וה-SVG שנוצר קופץ
+    מ-42KB למגה-בייט — כלומר עלות ההקלדה גדלה פי עשרה בדיוק כשהמשתמש מקליד
+    יותר. השהיה קבועה מתאימה רק לאחד משני המצבים; כאן היא נמתחת עד 500ms כדי
+    שהקלדה רציפה בטקסט ארוך לא תבנה מחדש את הכול בין תו לתו.
+  */
+  const bytes = byteLength(rawValue);
+  const debounceMs = bytes > 900 ? 500 : bytes > 300 ? 340 : 200;
+  const debouncedValue = useDebounced(rawValue, debounceMs);
 
   const design = DESIGN_BY_ID.get(state.designId) ?? DEFAULT_DESIGN;
   const size = SIZE_BY_ID.get(state.sizeId) ?? DEFAULT_SIZE;
@@ -217,15 +243,18 @@ export function useQrStudio(): StudioApi {
 
   const { geometry, error } = useMemo<{ geometry: QrGeometry | null; error: string | null }>(() => {
     if (!options) return { geometry: null, error: null };
-    if (options.value.length > MAX_LENGTH) {
-      return { geometry: null, error: `הטקסט ארוך מדי (${options.value.length} תווים). המקסימום הוא ${MAX_LENGTH}.` };
+    if (byteLength(options.value) > MAX_BYTES) {
+      return {
+        geometry: null,
+        error: 'התוכן ארוך מדי לקוד QR אחד. קצרו אותו, או צרו קוד דינמי שמצביע על דף עם כל התוכן.',
+      };
     }
     try {
       return { geometry: buildGeometry(options), error: null };
     } catch {
       return {
         geometry: null,
-        error: 'הטקסט ארוך מדי לרמת תיקון השגיאות שנבחרה. נסו לקצר אותו או לעבור לרמה נמוכה יותר.',
+        error: 'התוכן ארוך מדי לרמת תיקון השגיאות שנבחרה. קצרו אותו, או עברו לרמה נמוכה יותר.',
       };
     }
   }, [options]);
@@ -235,45 +264,62 @@ export function useQrStudio(): StudioApi {
     [optionsFor],
   );
 
-  /** תצוגה מקדימה קטנה לגלריה — תמיד עם ההגדרות המקוריות של העיצוב. */
-  const buildPreview = useCallback(
-    (previewDesign: QrDesign): QrGeometry | null => {
-      const value = debouncedValue || 'https://example.com';
-      try {
-        return buildGeometry({
-          value,
-          design: previewDesign,
-          transparentBackground: false,
-          quietZone: 2.5,
-          ecLevel: previewDesign.ecLevel,
-          logo: null,
-          backgroundOverride: undefined,
-          frame: { enabled: false, text: '' },
-        });
-      } catch {
-        return null;
-      }
-    },
-    [debouncedValue],
-  );
+  /**
+   * תצוגה מקדימה קטנה לגלריה — תמיד עם ההגדרות המקוריות של העיצוב.
+   *
+   * ערך דוגמה קצר וקבוע, ולא התוכן של המשתמש. הגלריה מציגה חמישה-עשר ריבועים
+   * בגודל אגודל, ובגודל הזה תוכן ארוך אינו נראה שונה — אבל הוא כן עולה: תוכן
+   * של 600 תווים הפך את פתיחת הגלריה ל-644 מילישניות של עבודה סינכרונית ועוד
+   * חמישה-עשר מסמכי SVG במגה-בייט כל אחד. זה היה הלאג בהחלפת עיצוב.
+   *
+   * ערך קבוע גם עושה את ההשוואה הוגנת: כל התבניות מציגות את אותה מטריצה,
+   * ולכן ההבדל שרואים הוא ההבדל בעיצוב.
+   */
+  const buildPreview = useCallback((previewDesign: QrDesign): QrGeometry | null => {
+    try {
+      return buildGeometry({
+        value: PREVIEW_VALUE,
+        design: previewDesign,
+        transparentBackground: false,
+        quietZone: 2.5,
+        ecLevel: previewDesign.ecLevel,
+        logo: null,
+        backgroundOverride: undefined,
+        frame: { enabled: false, text: '' },
+      });
+    } catch {
+      return null;
+    }
+  }, []);
 
-  // שמירת העדפות — לא כולל הקלט עצמו, שנשמר בהיסטוריה בנפרד
+  /*
+    שמירת העדפות — לא כולל הקלט עצמו, שנשמר בהיסטוריה בנפרד.
+
+    מושהית: `localStorage.setItem` הוא כתיבה סינכרונית שחוסמת את התהליך הראשי,
+    והאפקט תלוי בכל אובייקט המצב — כלומר כל תו שהוקלד גרר סריאליזציה וכתיבה
+    לדיסק. ההשהיה מאחדת רצף הקלדה לכתיבה אחת.
+  */
   useEffect(() => {
-    saveSettings({
-      designId: state.designId,
-      sizeId: state.sizeId,
-      quietZone: state.quietZone,
-      ecLevel: state.ecLevel,
-      transparentBackground: state.transparent,
-      moduleShape: state.moduleShape,
-      dotScale: state.dotScale,
-      cornerRadius: state.cornerRadius,
-      bodyOverride: state.bodyOverride,
-      backgroundOverride: state.backgroundOverride,
-      frameEnabled: state.frameEnabled,
-      frameText: state.frameText,
-      theme: 'system',
-    });
+    const timer = setTimeout(
+      () =>
+        saveSettings({
+          designId: state.designId,
+          sizeId: state.sizeId,
+          quietZone: state.quietZone,
+          ecLevel: state.ecLevel,
+          transparentBackground: state.transparent,
+          moduleShape: state.moduleShape,
+          dotScale: state.dotScale,
+          cornerRadius: state.cornerRadius,
+          bodyOverride: state.bodyOverride,
+          backgroundOverride: state.backgroundOverride,
+          frameEnabled: state.frameEnabled,
+          frameText: state.frameText,
+          theme: 'system',
+        }),
+      400,
+    );
+    return () => clearTimeout(timer);
   }, [state]);
 
   return {
@@ -294,5 +340,8 @@ export function useQrStudio(): StudioApi {
     buildPreview,
     error,
     isEmpty: !rawValue,
+    capacity: Math.min(1, bytes / MAX_BYTES),
+    // מעל 80 מודולים כל ריבוע יורד מתחת לחצי מילימטר במדבקה רגילה
+    dense: (geometry?.moduleCount ?? 0) > 80,
   };
 }

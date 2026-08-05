@@ -47,7 +47,7 @@ export function frameHeight(boardSize: number): number {
 /* גוף הקוד                                                            */
 /* ------------------------------------------------------------------ */
 
-function moduleGlyph(shape: ModuleShape, x: number, y: number, s: number): string {
+export function moduleGlyph(shape: ModuleShape, x: number, y: number, s: number): string {
   const inset = (1 - s) / 2;
   const px = x + inset;
   const py = y + inset;
@@ -147,11 +147,36 @@ function fluidPath(on: (x: number, y: number) => boolean, count: number, s: numb
   return d;
 }
 
+/**
+ * דוגמית קטנה של צורת המודול, לתצוגה בבורר.
+ *
+ * משתמשת באותן פונקציות שמייצרות את הקוד עצמו — כולל `fluidPath` ו-`barsPath`
+ * שתלויות בשכנים. דוגמית שמציירת מודול בודד לא הייתה יכולה להראות את
+ * ההתמזגות של "זורם" או את החיבור של הפסים, כלומר בדיוק את מה שמבדיל אותם.
+ */
+export function moduleSample(shape: ModuleShape, scale = 0.92): string {
+  const lit = new Set(['0,0', '1,0', '2,0', '1,1', '0,2', '1,2']);
+  const on = (x: number, y: number): boolean => lit.has(`${x},${y}`);
+  const count = 3;
+
+  if (shape === 'vbars') return barsPath(on, count, scale, true);
+  if (shape === 'hbars') return barsPath(on, count, scale, false);
+  if (shape === 'fluid') return fluidPath(on, count, scale);
+
+  let d = '';
+  for (let y = 0; y < count; y++) {
+    for (let x = 0; x < count; x++) {
+      if (on(x, y)) d += moduleGlyph(shape, x, y, scale);
+    }
+  }
+  return d;
+}
+
 /* ------------------------------------------------------------------ */
 /* עיניים                                                              */
 /* ------------------------------------------------------------------ */
 
-function eyeFrameGlyph(shape: EyeFrameShape, ox: number, oy: number): string {
+export function eyeFrameGlyph(shape: EyeFrameShape, ox: number, oy: number): string {
   const S = FINDER_SIZE; // 7
   const inner = S - 2; // 5
   const ix = ox + 1;
@@ -194,7 +219,7 @@ function eyeFrameGlyph(shape: EyeFrameShape, ox: number, oy: number): string {
   }
 }
 
-function eyeBallGlyph(shape: EyeBallShape, ox: number, oy: number): string {
+export function eyeBallGlyph(shape: EyeBallShape, ox: number, oy: number): string {
   const cx = ox + FINDER_SIZE / 2;
   const cy = oy + FINDER_SIZE / 2;
   const bx = ox + 2;

@@ -45,7 +45,7 @@ await page.goto(ORIGIN, { waitUntil: 'domcontentloaded' });
 await page.fill('#content-url', 'https://example.co.il');
 await page.waitForTimeout(600);
 
-await page.getByRole('button', { name: /ייצור באצווה/ }).click();
+await page.getByRole('button', { name: 'אצווה' }).click();
 await page.waitForTimeout(500);
 await page.getByRole('textbox').last().fill(LIST);
 await page.waitForTimeout(400);

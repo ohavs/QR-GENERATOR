@@ -4,13 +4,12 @@ import { useCallback, useRef, type ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 import { EASE_OUT, fade, springSnappy } from '@/lib/motion';
 import {
-  CONTENT_ORDER,
   CONTENT_TYPES,
   type ContentKind,
   type FieldSpec,
   type FieldValues,
 } from '@/lib/qr/content';
-import { useScrollIntoView } from '@/hooks/useScrollIntoView';
+import { KindPicker } from './KindPicker';
 
 /** התו החזק הראשון הוא עברי/ערבי — כלומר הטקסט עצמו RTL. */
 function isRtlText(value: string): boolean {
@@ -36,48 +35,10 @@ export function ContentInput({
   error,
 }: ContentInputProps): ReactNode {
   const type = CONTENT_TYPES[kind];
-  const scrollActiveIntoView = useScrollIntoView<HTMLButtonElement>();
 
   return (
     <div className="space-y-3">
-      {/* בורר הסוג — שורה נגללת, כי עשרה סוגים לא נכנסים לרוחב טלפון */}
-      <div className="rail -mx-4 flex gap-2 px-4 py-0.5" role="radiogroup" aria-label="סוג התוכן">
-        {CONTENT_ORDER.map((k) => {
-          const t = CONTENT_TYPES[k];
-          const active = k === kind;
-          const Icon = t.icon;
-          return (
-            <motion.button
-              key={k}
-              ref={active ? scrollActiveIntoView : undefined}
-              type="button"
-              role="radio"
-              aria-checked={active}
-              onClick={() => onKindChange(k)}
-              whileTap={{ scale: 0.94 }}
-              transition={springSnappy}
-              className={cn(
-                'relative flex h-10 shrink-0 items-center gap-1.5 rounded-full px-3.5',
-                'text-[0.8125rem] font-semibold transition-colors duration-200',
-                active ? 'text-ink-fg' : 'bg-surface-2 text-fg-muted hover:text-fg',
-              )}
-            >
-              {active && (
-                <motion.span
-                  layoutId="content-kind"
-                  transition={springSnappy}
-                  className="absolute inset-0 rounded-full bg-ink"
-                  aria-hidden
-                />
-              )}
-              <span className="relative flex items-center gap-1.5 whitespace-nowrap">
-                <Icon size={14} aria-hidden />
-                {t.label}
-              </span>
-            </motion.button>
-          );
-        })}
-      </div>
+      <KindPicker kind={kind} onChange={onKindChange} />
 
       {/* הטופס עצמו — מוחלף עם מעבר קצר, כדי שיהיה ברור שהמסך התחלף */}
       <AnimatePresence mode="wait" initial={false}>
@@ -102,20 +63,21 @@ export function ContentInput({
         </motion.div>
       </AnimatePresence>
 
+      {/* השגיאה עצמה מוצגת בתצוגה המקדימה, במקום שבו הקוד היה אמור להופיע.
+          כאן היא רק צובעת את השדה החסר — הודעה כפולה על אותו מסך היא רעש. */}
       <AnimatePresence>
-        {(note || error) && (
+        {note && !error && (
           <motion.p
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={fade}
             className={cn(
-              'flex items-start gap-1.5 overflow-hidden px-1 text-xs leading-relaxed',
-              error ? 'text-danger' : 'text-fg-muted',
+              'flex items-start gap-1.5 overflow-hidden px-1 text-xs leading-relaxed text-fg-muted',
             )}
           >
             <Info size={13} className="mt-0.5 shrink-0" aria-hidden />
-            <span>{error ?? note}</span>
+            <span>{note}</span>
           </motion.p>
         )}
       </AnimatePresence>

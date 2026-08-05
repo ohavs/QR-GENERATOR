@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { IdCard, Layers, Link2, Palette, Ruler, Type } from 'lucide-react';
+import { Palette, Ruler, Type } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AnonymousNotice } from './components/AnonymousNotice';
 import { ExportDock } from './components/ExportDock';
@@ -9,6 +9,7 @@ import { InstallSheet } from './components/InstallSheet';
 import { QrPreview } from './components/QrPreview';
 import { UpdatePrompt } from './components/UpdatePrompt';
 import { ContentInput } from './components/ContentInput';
+import { ToolRow } from './components/ToolRow';
 import { BatchSheet } from './components/sheets/BatchSheet';
 import { BrandSheet } from './components/sheets/BrandSheet';
 import { DesignSheet } from './components/sheets/DesignSheet';
@@ -32,7 +33,8 @@ import { listItem, listParent } from './lib/motion';
 import { CONTENT_TYPES } from './lib/qr/content';
 import { labelFor, DOT_SCALES, MODULE_SHAPES } from './lib/qr/options';
 import { paintToColor } from './lib/qr/render/common';
-import { DEFAULT_TEMPLATE, TEMPLATE_BY_ID } from './lib/cards/templates';
+import type { QrDesign } from './lib/qr/types';
+import { DEFAULT_TEMPLATE } from './lib/cards/templates';
 import type { CardState } from './lib/cards/types';
 import { linkUrl } from './lib/dynamic';
 import {
@@ -163,6 +165,58 @@ export default function App(): ReactNode {
     [history, toast],
   );
 
+  /**
+   * החלת עיצוב.
+   *
+   * ההתאמות הידניות (צבע, צורה, גודל מודול…) נמחקות. הן נשמרו בין רענונים
+   * וגברו על העיצוב, כך שמי שנגע פעם אחת בצבע ראה מאותו רגע את כל העיצובים
+   * באותו צבע — והחלפת עיצוב הרגישה כאילו אינה עושה דבר. עיצוב הוא חבילת
+   * סגנון שלמה, ובחירה בו צריכה להחליף את מה שהיה.
+   *
+   * מה שנמחק לא אובד: ההודעה מציעה ביטול שמחזיר את ההתאמות בדיוק כפי שהיו.
+   */
+  const applyDesign = useCallback(
+    (next: QrDesign) => {
+      const previous = {
+        designId: state.designId,
+        moduleShape: state.moduleShape,
+        eyeFrame: state.eyeFrame,
+        eyeBall: state.eyeBall,
+        dotScale: state.dotScale,
+        cornerRadius: state.cornerRadius,
+        bodyOverride: state.bodyOverride,
+        backgroundOverride: state.backgroundOverride,
+        ecLevel: state.ecLevel,
+      };
+      const customized =
+        previous.moduleShape !== null ||
+        previous.eyeFrame !== null ||
+        previous.eyeBall !== null ||
+        previous.dotScale !== null ||
+        previous.cornerRadius !== null ||
+        previous.bodyOverride !== null ||
+        previous.backgroundOverride !== null;
+
+      patch({
+        designId: next.id,
+        ecLevel: state.logo ? 'H' : next.ecLevel,
+        moduleShape: null,
+        eyeFrame: null,
+        eyeBall: null,
+        dotScale: null,
+        cornerRadius: null,
+        bodyOverride: null,
+        backgroundOverride: null,
+      });
+
+      if (customized) {
+        toast.undoable(`${next.name} · ההתאמות האישיות אופסו`, () => patch(previous));
+      }
+      void track('design_selected', { design: next.id });
+    },
+    [patch, state, toast],
+  );
+
   const closeSheet = useCallback(() => setSheet(null), []);
 
   const shapeLabel =
@@ -197,6 +251,10 @@ export default function App(): ReactNode {
           )}
 
           <motion.div variants={listItem}>
+            <ToolRow onOpen={setSheet} dynamicActive={!!state.dynamic} />
+          </motion.div>
+
+          <motion.div variants={listItem}>
             <ContentInput
               kind={state.contentKind}
               values={state.contentValues[state.contentKind] ?? {}}
@@ -219,6 +277,7 @@ export default function App(): ReactNode {
               compact={CONTENT_TYPES[state.contentKind].fields.length > 2}
               designName={design.name}
               onPickDesign={() => setSheet('design')}
+              dense={studio.dense}
             />
           </motion.div>
 
@@ -249,32 +308,9 @@ export default function App(): ReactNode {
                 value={`${size.label} · ${size.hint}`}
                 onClick={() => setSheet('size')}
               />
-              <SettingRow
-                icon={<IdCard size={18} aria-hidden />}
-                label="כרטיסייה מעוצבת"
-                value={
-                  TEMPLATE_BY_ID.get(card.templateId)?.name
-                    ? `${TEMPLATE_BY_ID.get(card.templateId)!.name} · כרטיס להדפסה`
-                    : 'כרטיס ביקור, שלט או מדבקה'
-                }
-                onClick={() => setSheet('card')}
-              />
-              <SettingRow
-                icon={<Layers size={18} aria-hidden />}
-                label="ייצור באצווה"
-                value="רשימת קישורים → גיליון מדבקות או ארכיון"
-                onClick={() => setSheet('batch')}
-              />
-              <SettingRow
-                icon={<Link2 size={18} aria-hidden />}
-                label="קוד דינמי"
-                value={
-                  state.dynamic
-                    ? `פעיל · ${state.dynamic.title}`
-                    : 'החלפת יעד אחרי הדפסה, ומדידת סריקות'
-                }
-                onClick={() => setSheet('dynamic')}
-              />
+              
+              
+              
             </RowGroup>
           </motion.div>
 
@@ -303,10 +339,7 @@ export default function App(): ReactNode {
         onClose={closeSheet}
         selectedId={state.designId}
         buildPreview={studio.buildPreview}
-        onSelect={(d) => {
-          patch({ designId: d.id, ecLevel: state.logo ? 'H' : d.ecLevel });
-          void track('design_selected', { design: d.id });
-        }}
+        onSelect={applyDesign}
       />
 
       <StyleSheet

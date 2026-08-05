@@ -27,6 +27,8 @@ interface QrPreviewProps {
   /** שם העיצוב הפעיל — מוצג על כפתור בחירת העיצוב */
   designName: string;
   onPickDesign: () => void;
+  /** קוד צפוף — נסרק, אבל דורש הדפסה גדולה יותר */
+  dense: boolean;
 }
 
 export function QrPreview({
@@ -40,6 +42,7 @@ export function QrPreview({
   compact = false,
   designName,
   onPickDesign,
+  dense,
 }: QrPreviewProps): ReactNode {
   return (
     <div className="space-y-3">
@@ -124,7 +127,7 @@ export function QrPreview({
 
       {/* מרווח לכפתור שגולש מתחת למסגרת */}
       <div className="pt-3.5">
-        <ScanBadge check={scanCheck} contrast={contrast} visible={!!geo} />
+        <ScanBadge check={scanCheck} contrast={contrast} visible={!!geo} dense={dense} />
       </div>
     </div>
   );
@@ -140,10 +143,12 @@ function ScanBadge({
   check,
   contrast,
   visible,
+  dense,
 }: {
   check: ScanCheckState;
   contrast: ScanContrast;
   visible: boolean;
+  dense: boolean;
 }): ReactNode {
   if (!visible || check === 'idle' || check === 'unknown') return null;
 
@@ -158,18 +163,33 @@ function ScanBadge({
       };
     }
     if (check === 'ok') {
-      return contrast.risk === 'fair'
-        ? {
-            tone: 'warn',
-            icon: <TriangleAlert size={13} aria-hidden />,
-            text: `נסרק, אך הניגודיות נמוכה (${contrast.ratio.toFixed(1)}:1)`,
-          }
-        : { tone: 'good', icon: <CircleCheck size={13} aria-hidden />, text: 'נבדק ונסרק בהצלחה' };
+      if (contrast.risk === 'fair') {
+        return {
+          tone: 'warn',
+          icon: <TriangleAlert size={13} aria-hidden />,
+          text: `נסרק, אך הניגודיות נמוכה (${contrast.ratio.toFixed(1)}:1)`,
+        };
+      }
+      // צפיפות אינה תקלה אלא מגבלה פיזית: הרבה תוכן = הרבה ריבועים = צריך
+      // שטח גדול יותר כדי שכל ריבוע יישאר גדול מספיק למצלמה
+      if (dense) {
+        return {
+          tone: 'muted',
+          icon: <CircleCheck size={13} aria-hidden />,
+          text: 'נסרק · קוד צפוף, הדפיסו אותו גדול',
+        };
+      }
+      return { tone: 'good', icon: <CircleCheck size={13} aria-hidden />, text: 'נבדק ונסרק בהצלחה' };
     }
     return {
       tone: 'bad',
       icon: <TriangleAlert size={13} aria-hidden />,
-      text: contrast.risk === 'poor' ? 'הניגודיות נמוכה מדי לסריקה' : 'הקוד לא נקרא בבדיקה',
+      text:
+        contrast.risk === 'poor'
+          ? 'הניגודיות נמוכה מדי לסריקה'
+          : dense
+            ? 'התוכן ארוך מדי לסריקה אמינה — קצרו אותו'
+            : 'הקוד לא נקרא בבדיקה',
     };
   })();
 

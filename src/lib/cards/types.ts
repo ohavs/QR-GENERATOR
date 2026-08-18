@@ -21,13 +21,17 @@ export type FieldKey =
   | 'address'
   | 'tagline'
   | 'headline'
-  | 'note';
+  | 'note'
+  | 'items';
 
 export interface CardField {
   key: FieldKey;
   label: string;
   placeholder: string;
   dir?: 'ltr' | 'rtl' | 'auto';
+  /** שדה רב-שורתי — לרשימת פריטים */
+  multiline?: boolean;
+  hint?: string;
 }
 
 /** השדות המוכנים שהמשתמש ממלא — במקום להקליד כל טקסט מאפס. */
@@ -42,6 +46,14 @@ export const CARD_FIELDS: CardField[] = [
   { key: 'website', label: 'אתר', placeholder: 'example.co.il', dir: 'ltr' },
   { key: 'address', label: 'כתובת', placeholder: 'הרצל 1, תל אביב', dir: 'auto' },
   { key: 'note', label: 'הערה קטנה', placeholder: 'פתוח א׳–ה׳ 08:00–18:00', dir: 'auto' },
+  {
+    key: 'items',
+    label: 'פריטים',
+    placeholder: 'אספרסו | 8\nקפוצ׳ינו | 12\nקרואסון חמאה | 14',
+    dir: 'auto',
+    multiline: true,
+    hint: 'שורה לכל פריט. מה שאחרי הקו האנכי הוא המחיר.',
+  },
 ];
 
 export const FIELD_BY_KEY = new Map(CARD_FIELDS.map((f) => [f.key, f]));
@@ -114,14 +126,40 @@ export interface ShapeElement {
   opacity?: number;
 }
 
-export type CardElement = TextElement | QrElement | ShapeElement;
+/**
+ * רשימת פריטים עם מחירים — לתפריטים.
+ *
+ * שדה טקסט אחד רב-שורתי במקום עשרים שדות: `שם | מחיר` בכל שורה. זה גם מה
+ * שמאפשר להדביק תפריט קיים ולקבל עיצוב, במקום להקליד פריט-פריט לתוך טופס.
+ */
+export interface ItemsElement {
+  kind: 'items';
+  id: string;
+  field: FieldKey;
+  x: number;
+  y: number;
+  width: number;
+  /** גובה שורה באחוזים מרוחב הכרטיס */
+  rowHeight: number;
+  size: number;
+  weight: 400 | 500 | 600 | 700 | 800 | 900;
+  color: string;
+  /** צבע המחיר; ברירת מחדל — צבע השם */
+  priceColor?: string;
+  /** קו נקודות בין השם למחיר, כמו בתפריט מודפס */
+  leader?: boolean;
+  maxRows: number;
+  font?: 'display' | 'sans';
+}
+
+export type CardElement = TextElement | QrElement | ShapeElement | ItemsElement;
 
 export interface CardTemplate {
   id: string;
   name: string;
   blurb: string;
   /** קיבוץ בגלריה */
-  group: 'scan' | 'business' | 'label';
+  group: 'scan' | 'menu' | 'business' | 'label';
   /** מידות פיזיות במילימטרים — הכרטיס נועד להדפסה */
   widthMm: number;
   heightMm: number;

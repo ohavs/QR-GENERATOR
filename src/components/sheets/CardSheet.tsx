@@ -225,12 +225,31 @@ export function CardSheet({
           )}
         </div>
 
-        <p className="mt-2 flex items-center justify-center gap-1.5 text-[0.6875rem] text-fg-subtle">
-          <Move size={11} aria-hidden />
-          {filled === 0
-            ? 'הטקסט האפור הוא דוגמה — הוא לא יודפס'
-            : 'אפשר לגרור את הקוד למקום אחר'}
-        </p>
+        {filled === 0 ? (
+          /*
+            החיווי הזה נולד מדיווח אמיתי: המשתמש ראה טקסט אפור משכנע, ייצא,
+            וקיבל כרטיס עם קוד בלבד. אזהרה שקטה בשורת עזרה לא הספיקה — כאן
+            היא בולטת, ולידה הכפתור שהופך את הדוגמה לתוכן אמיתי בהקשה אחת.
+          */
+          <div className="mt-2 flex items-center gap-2 rounded-[var(--radius-tile)] border border-warning/40 bg-warning/10 p-2 ps-3">
+            <p className="flex-1 text-[0.6875rem] font-semibold leading-snug text-warning">
+              הטקסט האפור הוא דוגמה בלבד — הכרטיס יודפס עם הקוד בלבד
+            </p>
+            <Button
+              variant="soft"
+              size="sm"
+              className="shrink-0 !h-8 !px-3 !text-[0.6875rem]"
+              onClick={() => onChange({ ...state, values: { ...template.sample } })}
+            >
+              מלאו בדוגמה
+            </Button>
+          </div>
+        ) : (
+          <p className="mt-2 flex items-center justify-center gap-1.5 text-[0.6875rem] text-fg-subtle">
+            <Move size={11} aria-hidden />
+            אפשר לגרור את הקוד למקום אחר
+          </p>
+        )}
       </div>
 
       {/* ── תבניות ───────────────────────────────────────────────
@@ -240,7 +259,7 @@ export function CardSheet({
         <Pills
           label="קבוצת תבניות"
           layout="grid"
-          columns={3}
+          columns={4}
           value={group}
           onChange={setGroup}
           options={CARD_GROUPS.map((g) => ({ value: g.id, label: g.label }))}
@@ -312,14 +331,28 @@ export function CardSheet({
                 <span className="mb-1 block px-1 text-[0.75rem] font-semibold text-fg-muted">
                   {field.label}
                 </span>
-                <input
-                  type="text"
-                  dir={field.dir === 'ltr' ? 'ltr' : 'auto'}
-                  value={state.values[key] ?? ''}
-                  onChange={(e) => setField(key, e.target.value)}
-                  placeholder={template.sample[key] ?? field.placeholder}
-                  className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-right text-[0.875rem] font-medium outline-none transition-colors placeholder:font-normal placeholder:text-fg-subtle focus:border-fg"
-                />
+                {field.multiline ? (
+                  <textarea
+                    rows={6}
+                    dir="auto"
+                    value={state.values[key] ?? ''}
+                    onChange={(e) => setField(key, e.target.value)}
+                    placeholder={template.sample[key] ?? field.placeholder}
+                    className="w-full resize-y rounded-xl border border-border bg-surface p-3 text-right text-[0.875rem] font-medium leading-relaxed outline-none transition-colors placeholder:font-normal placeholder:text-fg-subtle focus:border-fg"
+                  />
+                ) : (
+                  <input
+                    type="text"
+                    dir={field.dir === 'ltr' ? 'ltr' : 'auto'}
+                    value={state.values[key] ?? ''}
+                    onChange={(e) => setField(key, e.target.value)}
+                    placeholder={template.sample[key] ?? field.placeholder}
+                    className="h-11 w-full rounded-xl border border-border bg-surface px-3 text-right text-[0.875rem] font-medium outline-none transition-colors placeholder:font-normal placeholder:text-fg-subtle focus:border-fg"
+                  />
+                )}
+                {field.hint && (
+                  <span className="mt-1 block px-1 text-[0.6875rem] text-fg-subtle">{field.hint}</span>
+                )}
               </label>
             );
           })}

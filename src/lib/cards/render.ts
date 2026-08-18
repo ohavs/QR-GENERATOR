@@ -1,7 +1,7 @@
 import { renderToCanvas } from '../qr/render/canvas';
 import { linearPoints, radialParams, type Region } from '../qr/render/common';
 import type { Paint, QrGeometry } from '../qr/types';
-import type { CardTemplate, CardValues, ShapeElement, TextElement } from './types';
+import type { CardTemplate, CardValues, ItemsElement, ShapeElement, TextElement } from './types';
 
 /**
  * רינדור כרטיס.
@@ -157,6 +157,83 @@ function drawShape(ctx: CanvasRenderingContext2D, element: ShapeElement, unit: n
 }
 
 /**
+ * מפרק שורת פריט ל"שם" ו"מחיר".
+ *
+ * המפריד הוא הקו האנכי, עם נפילה לרווח-מקף-רווח כי זה מה שאנשים מקלידים
+ * באופן טבעי. שורה בלי מפריד היא פריט בלי מחיר, ולא שגיאה.
+ */
+export function parseItemRow(line: string): { name: string; price: string } {
+  const match = /^(.*?)\s*(?:\||\s-\s|\t)\s*([^|\t]*)$/.exec(line.trim());
+  if (!match) return { name: line.trim(), price: '' };
+  return { name: match[1].trim(), price: match[2].trim() };
+}
+
+function drawItems(
+  ctx: CanvasRenderingContext2D,
+  element: ItemsElement,
+  raw: string,
+  unit: number,
+  fonts: { display: string; sans: string },
+  ghost: boolean,
+): void {
+  const rows = raw
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .slice(0, element.maxRows)
+    .map(parseItemRow);
+  if (!rows.length) return;
+
+  const fontSize = element.size * unit;
+  const family = element.font === 'display' ? fonts.display : fonts.sans;
+  const left = element.x * unit;
+  const right = (element.x + element.width) * unit;
+
+  ctx.save();
+  ctx.globalAlpha = ghost ? 0.34 : 1;
+  ctx.textBaseline = 'top';
+  ctx.font = `${element.weight} ${fontSize}px ${family}`;
+
+  rows.forEach((row, index) => {
+    const y = (element.y + index * element.rowHeight) * unit;
+
+    ctx.direction = isRtl(row.name) ? 'rtl' : 'ltr';
+    ctx.textAlign = 'left';
+    ctx.fillStyle = element.color;
+    ctx.fillText(row.name, left, y);
+    const nameWidth = ctx.measureText(row.name).width;
+
+    if (!row.price) return;
+
+    ctx.direction = 'ltr';
+    ctx.textAlign = 'right';
+    ctx.fillStyle = element.priceColor ?? element.color;
+    ctx.fillText(row.price, right, y);
+    const priceWidth = ctx.measureText(row.price).width;
+
+    // קו נקודות בין השם למחיר — הפרט שהופך רשימה לתפריט
+    if (element.leader) {
+      const gapStart = left + nameWidth + fontSize * 0.4;
+      const gapEnd = right - priceWidth - fontSize * 0.4;
+      if (gapEnd > gapStart) {
+        ctx.save();
+        ctx.globalAlpha = (ghost ? 0.34 : 1) * 0.35;
+        ctx.strokeStyle = element.color;
+        ctx.lineWidth = Math.max(0.6, fontSize * 0.055);
+        ctx.setLineDash([ctx.lineWidth, ctx.lineWidth * 3]);
+        ctx.beginPath();
+        ctx.moveTo(gapStart, y + fontSize * 0.72);
+        ctx.lineTo(gapEnd, y + fontSize * 0.72);
+        ctx.stroke();
+        ctx.restore();
+      }
+    }
+  });
+
+  ctx.restore();
+}
+
+/**
  * מצייר את הכרטיס המלא.
  *
  * `qrOverride` מאפשר למשתמש להזיז ולשנות את גודל הקוד מעל מה שהתבנית קבעה.
@@ -203,6 +280,16 @@ export async function renderCard(
       } else if (placeholders !== 'none') {
         const sample = template.sample[element.field] ?? '';
         drawText(ctx, element, sample, unit, fonts, placeholders === 'ghost');
+      }
+      continue;
+    }
+
+    if (element.kind === 'items') {
+      const filled = (values[element.field] ?? '').trim();
+      if (filled) {
+        drawItems(ctx, element, filled, unit, fonts, false);
+      } else if (placeholders !== 'none') {
+        drawItems(ctx, element, template.sample[element.field] ?? '', unit, fonts, placeholders === 'ghost');
       }
       continue;
     }

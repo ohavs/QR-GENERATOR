@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { CARD_TEMPLATES, TEMPLATE_BY_ID } from './templates';
-import { CARD_FIELDS, type CardTemplate, type QrElement, type TextElement } from './types';
+import {
+  CARD_FIELDS,
+  type CardTemplate,
+  type ItemsElement,
+  type QrElement,
+  type TextElement,
+} from './types';
 
 /**
  * התבניות הן דאטה, ולכן אפשר לבדוק אותן כמו דאטה.
@@ -35,6 +41,21 @@ function textBox(element: TextElement): Box {
   };
 }
 
+/**
+ * תיבת רשימת הפריטים.
+ *
+ * הגובה נמדד לפי `maxRows` ולא לפי הדוגמה: תפריט שהמשתמש ימלא בשמונה שורות
+ * חייב להיכנס גם אם הדוגמה מציגה שש.
+ */
+function itemsBox(element: ItemsElement): Box {
+  return {
+    x: element.x,
+    y: element.y,
+    right: element.x + element.width,
+    bottom: element.y + (element.maxRows - 1) * element.rowHeight + element.size * 1.25,
+  };
+}
+
 function qrBox(element: QrElement): Box {
   const pad = element.plate?.padding ?? 0;
   return {
@@ -59,6 +80,31 @@ describe.each(CARD_TEMPLATES.map((t) => [t.name, t] as const))('תבנית %s', 
       expect(box.y).toBeGreaterThanOrEqual(0);
       expect(box.right).toBeLessThanOrEqual(100);
       expect(box.bottom).toBeLessThanOrEqual(bottom);
+    }
+  });
+
+  it('רשימת הפריטים נכנסת בכרטיס גם כשהיא מלאה', () => {
+    for (const element of template.elements) {
+      if (element.kind !== 'items') continue;
+      const box = itemsBox(element);
+      expect(box.x, element.id).toBeGreaterThanOrEqual(0);
+      expect(box.right, element.id).toBeLessThanOrEqual(100);
+      expect(box.bottom, element.id).toBeLessThanOrEqual(bottom);
+    }
+  });
+
+  it('רשימת הפריטים אינה רובצת על הקוד או על טקסט', () => {
+    const lists = template.elements.filter((e): e is ItemsElement => e.kind === 'items').map(itemsBox);
+    if (!lists.length) return;
+
+    const others = template.elements
+      .filter((e): e is TextElement | QrElement => e.kind === 'text' || e.kind === 'qr')
+      .map((e) => [e.id, e.kind === 'qr' ? qrBox(e) : textBox(e)] as const);
+
+    for (const list of lists) {
+      for (const [id, box] of others) {
+        expect(overlaps(list, box), `${id} חופף לרשימת הפריטים`).toBe(false);
+      }
     }
   });
 
